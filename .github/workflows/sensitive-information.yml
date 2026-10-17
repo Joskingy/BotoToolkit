@@ -1,0 +1,26 @@
+name: Sensitive information
+
+on:
+  push:
+  pull_request:
+  merge_group:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sensitive-information:
+    name: sensitive-information
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out full history
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Install checksum-verified scanner
+        run: python3 scripts/install_security_tools.py
+      - name: Verify detection and scan files and history
+        run: python3 scripts/security_check.py --history --require-history

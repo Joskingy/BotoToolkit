@@ -1,0 +1,36 @@
+title = "Credentials and private infrastructure metadata"
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "private-aws-account"
+description = "Use ACCOUNT_ID placeholders outside synthetic test fixtures"
+regex = '''\b[0-9]{12}\b'''
+[[rules.allowlists]]
+condition = "AND"
+paths = ['''(^|/)tests/''', '''(^|/)\.gitleaks\.toml$''']
+regexes = ['''^(111122223333|000000000000)$''']
+
+[[rules]]
+id = "private-amplify-id"
+description = "Possible live Amplify identifier"
+regex = '''\bd[a-z0-9]{12}\b'''
+[[rules.allowlists]]
+regexes = ['''^documentation$''', '''^deterministic$''']
+
+[[rules]]
+id = "private-resource-argument"
+description = "Concrete Amplify or AppSync CLI resource argument"
+regex = '''--(?:app-id|api-id)[ \t]+["']?([a-z][a-z0-9]{9,})\b'''
+secretGroup = 1
+
+[[rules]]
+id = "private-appsync-id"
+description = "Possible AppSync identifier; use API_ID placeholders"
+regex = '''\b[a-z0-9]{26}\b'''
+
+[[rules]]
+id = "private-home-path"
+description = "Use portable paths instead of personal home directories"
+regex = '''(?:[A-Za-z]:[\\/]Users[\\/]|/home/|/Users/)[A-Za-z0-9_.-]+'''

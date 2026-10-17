@@ -1,0 +1,35 @@
+# Block potential local credential dumps
+.env
+*.pem
+*.json
+
+# Block local AWS CLI artifacts if developers clone directly to user directories
+.aws/
+aws/
+
+# Python artifacts
+__pycache__/
+.uv/
+.venv/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+dist/
+build/
+*.egg-info/
+.env.*
+*.key
+credentials
+reports/
+inventory*.json
+.amplify-ops/
+
+# Private operator notes and raw logs
+private/
+.local/
+*.jsonl
+*.log
+
+# Personal editor workspace files
+*.code-workspace

@@ -1,0 +1,3 @@
+#!/bin/sh
+set -eu
+exec uv run --locked python scripts/security_check.py --staged

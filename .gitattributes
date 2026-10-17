@@ -1,0 +1,4 @@
+# Git hooks must remain executable shell scripts with Unix line endings.
+.githooks/* text eol=lf
+*.py text eol=lf
+*.yml text eol=lf

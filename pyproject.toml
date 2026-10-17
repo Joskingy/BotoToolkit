@@ -1,0 +1,42 @@
+[project]
+name = "amplify-ops"
+version = "0.1.0"
+description = "AWS Amplify reports and explicitly reviewed deployment job retries"
+readme = "README.md"
+authors = [
+    { name = "Joskingy" }
+]
+requires-python = ">=3.15"
+dependencies = [
+    "boto3>=1.43.114",
+    "typer>=0.20",
+    "rich>=14",
+]
+
+[project.scripts]
+bototoolkit = "bototoolkit:main"
+amplify-ops = "amplify_ops.cli:app"
+
+[dependency-groups]
+dev = ["pytest>=8.4", "ruff>=0.14"]
+
+[tool.uv.build-backend]
+module-name = ["amplify_ops", "bototoolkit"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+
+[tool.ruff]
+target-version = "py315"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.ruff.per-file-target-version]
+"scripts/*.py" = "py312"
+
+[build-system]
+requires = ["uv_build>=0.12.13,<0.13.0"]
+build-backend = "uv_build"
