@@ -452,3 +452,89 @@ was attempted. Committing/publishing the existing work, deciding repository
 ownership, creating dev and real worktrees, configuring reviewers/rulesets,
 routing Dependabot, and verifying hosted PR/release cycles remain adoption
 steps. The plan does not claim those steps have already happened.
+
+## Branch and worktree implementation (October 21, 2026)
+
+### Preservation and local layout
+
+Saved the original pending diff and all eleven untracked files in ignored
+.uv/branching-backup before switching branches. Preserved all 29 publishable
+changed/new files in commit 80d54ab on codex/branching-bootstrap, including the
+project-local skill, audit fixes, regression tests, scanner hardening, CI, and
+guide. Private outputs, local environments, editor files, and deployment state
+were left in their original checkout. The original root remains the main
+worktree; sibling BotoToolkit-dev and BotoToolkit-bootstrap directories check
+out dev and codex/branching-bootstrap respectively. Each new worktree has its
+own .venv and installed checksum-verified scanner. A shared download cache and
+Python installation do not share editable package environments.
+
+A follow-up commit routes Dependabot version updates to dev and updates the
+contributor/branch guide to the adopted strategy. The existing origin and main
+default were retained. No repository transfer, AWS request, deployment, release
+tag, environment deletion, or private-report publication was performed.
+
+### GitHub configuration and promotion
+
+Published dev from the existing main baseline and published the bootstrap
+branch. Opened the bootstrap PR with base dev. Its commits preserve the prior
+work and introduce the integration strategy. Promotion proceeds through a
+merge-commit PR from dev to main and a temporary synchronization branch from
+dev that incorporates main. GitHub PR history records the resulting merge
+commits; no direct push to the protected branches is used for these changes.
+
+Created an active ruleset matching main and dev with no bypass actors. It
+requires PRs, resolved conversations, current-base testing, and quality,
+tests (ubuntu-24.04), tests (windows-latest), package, and sensitive-information
+checks from the verified GitHub Actions integration. Force pushes and branch
+deletion are blocked. Repository settings allow merge commits only, disable
+squash/rebase merges, and leave automatic head-branch deletion off. The ruleset
+was read back and confirmed active on dev. Main stays the default branch.
+
+The current sole owner remains the CI/security CODEOWNER. Independent approval
+and mandatory owner approval are deliberately off under the guide's solo
+maintainer policy: add a second trusted reviewer before requiring those gates.
+Secret scanning and push protection were already enabled and were preserved.
+GitHub's private metadata/custom-pattern coverage still needs separate review;
+the local and CI scanners remain necessary. Dependabot security updates were
+reported disabled; that is separate from the configured weekly action-version
+updates targeting dev. No cloud credentials or deployment environment is needed.
+
+The GitHub connector could read repository metadata but returned integration
+403 errors for branch and PR creation. Standard Git authentication successfully
+published both branches. For missing connector operations, GitHub CLI used that
+existing credential only in process memory, without printing, saving, or asking
+for tokens. GitHub CLI's persistent login was not changed.
+
+### Exact checks and results
+
+1. Ran uv run --locked pytest -q --tb=short in the original checkout before
+   splitting: **195 passed in 118.56 seconds**, no skips. Ruff lint and formatting
+   passed; formatting reported 42 files. uv lock --check --offline passed with
+   21 packages. No dependency or Python requirement was changed.
+2. Ran uv run --locked python scripts/check_distribution.py: passed wheel and
+   source-derived wheel builds, archive checks, clean hash-locked installations,
+   isolated imports, and both entry points. The first sandboxed online attempt
+   could not resolve PyPI DNS; rerunning with UV_OFFLINE=true used cached build
+   dependencies and passed without changing the declared build backend.
+3. In each actual linked worktree, ran uv sync --locked --offline, installed the
+   scanner with scripts/install_security_tools.py, and ran security_check.py
+   --history --require-history. All passed. Assertions verified sys.prefix was
+   that checkout's .venv and both package imports resolved under its own src.
+4. In BotoToolkit-bootstrap, ran uv run --locked pytest -q --tb=short:
+   **195 passed in 79.06 seconds**, no skips. uv run --locked ruff check . and
+   uv run --locked ruff format --check . passed (42 files). Package installation
+   checks and uv lock --check --offline passed again in the linked checkout.
+5. actionlint 1.7.12 with -shellcheck= -pyflakes= passed both workflows. Security
+   scans included working files, scanner canaries, and all reachable history.
+   The real pre-commit and pre-push hooks ran successfully for the commits and
+   pushes. git diff --check passed; normalization warnings were informational.
+6. Hosted push CI for the bootstrap code completed quality, Linux tests, Windows
+   tests, package checks, and sensitive-information scanning successfully. PR
+   and promotion commits are additionally gated by the same enforced checks.
+   The GitHub PR/check history provides the exact hosted commit/run results.
+
+This record describes the setup and verified checks before final PR promotion.
+The resulting commit and PR identifiers are reported with task completion.
+Remaining administrator choices are the second reviewer/mandatory approvals,
+custom private-metadata push rules where supported, and whether to enable
+Dependabot security updates in addition to scheduled action-version updates.
