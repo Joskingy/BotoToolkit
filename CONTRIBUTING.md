@@ -8,8 +8,7 @@ your normal credential setup is needed for live AWS use, not for offline tests.
 
 ## First clone
 
-Once the repository has been published, replace OWNER/REPOSITORY with its
-actual location. The local destination name below is just a folder name.
+Replace OWNER/REPOSITORY with the intended repository location. The local destination name below is just a folder name.
 
 ```powershell
 git clone https://github.com/OWNER/REPOSITORY.git amplify-ops
@@ -67,9 +66,11 @@ reviewed plan, explicit confirmations, and separate AWS permissions.
 
 ## Everyday work
 
-For the proposed main/dev/feature process, migration sequence, and per-checkout
-setup, see [the branch and worktree guide](docs/branching-and-worktrees.md).
-The guide is an adoption plan; branches and GitHub rules are not created by it.
+Use main for reviewed releases, dev for integration, and a separate feature/*
+or codex/* branch and worktree for each task. Target dev in ordinary pull
+requests; promote dev to main with a merge commit. See [the branch and worktree
+guide](docs/branching-and-worktrees.md) for setup, synchronization, and cleanup.
+GitHub protection and review requirements must also be configured remotely.
 
 ```powershell
 uv sync --locked

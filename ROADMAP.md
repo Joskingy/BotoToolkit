@@ -133,3 +133,11 @@ The step-by-step guide in docs/branching-and-worktrees.md covers preserving the
 pending changes, creating main/dev/feature worktrees, GitHub rules, release
 promotion, hotfix synchronization, and cleanup. No branch, remote, or repository
 setting was changed. Adoption and hosted enforcement remain future work.
+
+## Branch and worktree adoption — implementation in progress
+
+The pending audit, CI, skill, and guide changes are preserved in a bootstrap
+commit. The original checkout is on main; sibling dev and bootstrap worktrees
+have separate Python environments and checksum-verified scanners. Dependabot
+version updates are routed to dev in the bootstrap branch. Remote review,
+promotion, and protection status are recorded in IMPLEMENTATION_REPORT.md.

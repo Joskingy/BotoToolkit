@@ -1,7 +1,9 @@
 # Main, dev, and feature branches with Git worktrees
 
-This is an adoption guide, not a migration already performed. It describes the
-repository inspected on October 21, 2026. Commands are for PowerShell; run each
+This guide includes the original migration procedure and the ongoing developer
+workflow. The initial snapshot below was recorded on October 21, 2026. For actual
+adoption progress and verification, see the latest branch/worktree section in
+[IMPLEMENTATION_REPORT.md](../IMPLEMENTATION_REPORT.md). Commands are for PowerShell; run each
 step from the stated directory and stop when a command fails. Replace
 OWNER/REPOSITORY with the intended GitHub repository. No AWS access is needed.
 
@@ -164,8 +166,9 @@ explicit trusted review for this bootstrap PR. Then promote dev to main using
 step 9 so both long-lived branches have CI and ownership files before routine
 development. Keep dev after the promotion.
 
-The commands above are adoption instructions only; this documentation request
-does not execute them, push commits, or create GitHub PRs.
+The commands above are the one-time bootstrap procedure. Do not rerun branch
+creation against an existing setup; inspect git worktree list and git branch
+--all first. Follow the implementation report for the current migration state.
 
 ## 5. Initialize every checkout independently
 
@@ -248,8 +251,8 @@ Enforce the target convention in review initially. An optional later dedicated
 check can validate PR source/target pairs, including same-repository identity,
 hotfix and synchronization exceptions. Do not grant it AWS permissions.
 
-After dev exists, make a small feature PR adding this setting to the existing
-GitHub Actions entry in .github/dependabot.yml, then promote it to main:
+The bootstrap changes set the following option on the existing GitHub Actions
+entry in .github/dependabot.yml. It takes effect when promoted to main:
 
 ```yaml
     target-branch: dev
