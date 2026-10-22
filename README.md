@@ -249,6 +249,9 @@ headers. Supported hosts are standard AWS S3 and CloudFront endpoints; other
 hosts, non-HTTPS URLs, userinfo, custom ports, fragments, redirects, and compressed
 responses are rejected. Signed URLs are never exported or persisted.
 
+A body ending before its declared Content-Length is an incomplete read and
+produces a partial investigation; a successful HTTP status alone is insufficient.
+
 Limits are fixed: at most four failed-step log attempts, 256 KiB inspected per
 log (plus at most one sentinel byte downloaded to detect truncation), 20 findings
 per log, 5-second socket timeouts, and a 15-second elapsed deadline checked
@@ -360,6 +363,9 @@ role needs these two service actions, not the List* or GetJob actions above.
   test temp storage into a writable workspace as shown below.
 
 ## Development and verification
+
+See [CI and GitHub setup](docs/ci.md) for the Linux/Windows checks, clean package
+installation validation, pinned toolchain, and required repository settings.
 
 ```powershell
 uv sync --locked

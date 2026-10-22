@@ -68,6 +68,11 @@ working copy cannot hide a staged leak. The pre-push hook scans publishable
 working files plus all locally reachable Git history and HEAD. A secret deleted
 in a later commit still fails. The first working-tree scan supports a repository
 with no commits. CI requires a commit and full history; shallow clones fail.
+History scans also apply private-path, file-mode, and size restrictions to every
+reachable commit tree, including deleted or renamed artifacts. Reusing the same
+file contents under a private path cannot bypass that check. `--require-history`
+implies history scanning even when `--history` is omitted. Tree checks add work
+as distinct historical snapshots grow; timeouts fail the scan rather than skip it.
 The scripts support Python 3.12+; the application still requires Python 3.15+.
 
 The scanner extends Gitleaks credential rules with private metadata rules for
@@ -117,11 +122,13 @@ After creating your intended repository and uploading the sanitized source:
 3. Require review, dismiss stale approvals on new commits, restrict bypasses,
    and prevent force pushes/deletions. Apply protections to administrators too
    where supported. Do not assume a workflow file alone enforces merges.
-4. Assign actual trusted owners in CODEOWNERS for `.github/`, `.gitleaks.toml`,
-   `.githooks/`, and `scripts/`; require their review. These controls are code
+4. CODEOWNERS now assigns `.github/`, `.gitleaks.toml`, `.githooks/`, `scripts/`,
+   and related verification/dependency files to `@Joskingy`. Verify write access
+   and require owner review. These controls are code
    and a PR could weaken its own scanner. Organization-enforced required
    workflows from a protected repository provide stronger separation where
-   available. Owner names cannot be filled in before the repository is chosen.
+   available. A PR author cannot approve their own PR; arrange an independent
+   trusted reviewer before enforcing approval for owner-authored changes.
 5. Enable secret scanning and **push protection** in repository security settings
    where your repository/plan supports them. Restrict bypasses. Provider-token
    protection does not generally treat AWS account/app IDs as secrets. Configure
@@ -134,8 +141,9 @@ After creating your intended repository and uploading the sanitized source:
 A push workflow runs **after GitHub receives the push**. It cannot undo that
 upload or prevent PR creation. Required checks block merging; local pre-push
 hooks and GitHub push protection provide earlier rejection. Feature availability
-depends on repository visibility and GitHub plan. This workspace has not been
-published, so remote runs and settings are not yet verified.
+depends on repository visibility and GitHub plan. Remote runs and settings must
+be verified separately. See [CI and GitHub setup](ci.md) for all five required
+check names, toolchain details, owner-review setup, and verification steps.
 
 If a real credential ever reaches Git history, revoke/rotate it and remove it
 from history before publication. Deleting it from the current file is insufficient.
@@ -198,6 +206,9 @@ Executed results for this update:
 
 Remote Actions execution, required-check enforcement, and GitHub push protection
 remain unverified until a repository exists and its settings are configured.
+
+The later [deep test audit](test-audit.md) includes current regression results,
+installer coverage, historical artifact tests, and preserved compatibility paths.
 
 ## References
 

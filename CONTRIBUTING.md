@@ -39,6 +39,14 @@ exercise a real local Gitleaks binary and disposable repositories; install that
 binary before running the suite to avoid skipping those cases. Tests do not
 need AWS access or GitHub login and do not submit real deployments.
 
+## Continuous integration
+
+For the checks that run on pull requests, see [CI and GitHub setup](docs/ci.md).
+CI tests Linux and Windows, checks lint/format and the lockfile, validates built
+package installation, and scans private information. It uses no AWS credentials.
+To reproduce the package job, use uv 0.13.4 and run
+`uv run --locked python scripts/check_distribution.py`.
+
 ## First live read
 
 Configure/sign in to the intended local AWS profile brewmaster using your
@@ -58,6 +66,10 @@ local storage. Start with read-only commands; deploy requires a separate
 reviewed plan, explicit confirmations, and separate AWS permissions.
 
 ## Everyday work
+
+For the proposed main/dev/feature process, migration sequence, and per-checkout
+setup, see [the branch and worktree guide](docs/branching-and-worktrees.md).
+The guide is an adoption plan; branches and GitHub rules are not created by it.
 
 ```powershell
 uv sync --locked

@@ -1,5 +1,6 @@
 import json
 from datetime import timedelta
+from http.client import HTTPResponse
 from io import BytesIO
 from unittest.mock import Mock
 
@@ -63,6 +64,7 @@ def stub_log(
     response.__enter__ = Mock(return_value=response)
     response.__exit__ = Mock(return_value=False)
     response.status = status
+    response.length = None
     response.getheader.return_value = encoding
     response.read1.side_effect = BytesIO(content).read1
     connection = Mock()
@@ -70,6 +72,20 @@ def stub_log(
     factory = Mock(return_value=connection)
     monkeypatch.setattr("amplify_ops.logs.HTTPSConnection", factory)
     return factory, connection, response
+
+
+def stub_http_log(monkeypatch, content, content_length):
+    headers = b"HTTP/1.1 200 OK\r\n"
+    if content_length is not None:
+        headers += f"Content-Length: {content_length}\r\n".encode("ascii")
+    socket = Mock()
+    socket.makefile.return_value = BytesIO(headers + b"\r\n" + content)
+    response = HTTPResponse(socket)
+    response.begin()
+    connection = Mock()
+    connection.getresponse.return_value = response
+    monkeypatch.setattr("amplify_ops.logs.HTTPSConnection", Mock(return_value=connection))
+    return connection
 
 
 def test_selects_latest_failed_across_unordered_pages(harness):
@@ -303,6 +319,37 @@ def test_log_connection_error_does_not_leak_url(monkeypatch):
     with pytest.raises(LogReadFailure) as error:
         download_log(URL)
     assert str(error.value) == "LogConnectionFailure"
+
+
+@pytest.mark.parametrize("content_length", [None, 9])
+def test_complete_http_log_with_known_or_unknown_length(monkeypatch, content_length):
+    content = b"ERESOLVE\n"
+    connection = stub_http_log(monkeypatch, content, content_length)
+    assert download_log(URL) == (content, False)
+    connection.close.assert_called_once()
+
+
+def test_early_http_eof_rejects_incomplete_log(monkeypatch):
+    connection = stub_http_log(monkeypatch, b"ERESOLVE\n", 100)
+    with pytest.raises(LogReadFailure, match="^LogIncompleteBody$"):
+        download_log(URL)
+    connection.close.assert_called_once()
+
+
+def test_early_http_eof_keeps_job_evidence_and_marks_report_partial(harness, monkeypatch):
+    _, _, stubs = harness
+    identity_response(stubs)
+    add_job(stubs)
+    stub_http_log(monkeypatch, b"ERESOLVE private-log-value\n", 100)
+    result = run_json("--job-id", "1", "--inspect-logs")
+    report = json.loads(result.stdout)
+    assert result.exit_code == 3 and not report["complete"]
+    assert report["job"]["status"] == "FAILED"
+    assert report["steps"][0]["status"] == "FAILED"
+    assert report["steps"][0]["log"]["state"] == "unavailable"
+    assert report["errors"][0]["code"] == "LogIncompleteBody"
+    assert "private-log-value" not in result.output
+    assert "private-url-signature" not in result.output
 
 
 def test_log_deadline_is_enforced(monkeypatch):

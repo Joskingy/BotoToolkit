@@ -45,6 +45,19 @@ def forbidden_path(name):
     )
 
 
+def repository_path(raw_name):
+    name = raw_name.decode("utf-8", errors="strict")
+    path = PurePosixPath(name)
+    if path.is_absolute() or ".." in path.parts or "\\" in name or ":" in name:
+        raise ScanFailure("Unsupported repository path; scan blocked.")
+    return name
+
+
+def check_private_path(name):
+    if forbidden_path(name):
+        raise ScanFailure(f"Private artifact cannot be published: {json.dumps(name)}")
+
+
 def snapshot(root, target, staged=False):
     if staged:
         entries = git(root, "ls-files", "--stage", "-z").split(b"\0")
@@ -66,15 +79,11 @@ def snapshot(root, target, staged=False):
             if name
         ]
     for raw_name, oid in files:
-        name = raw_name.decode("utf-8", errors="strict")
-        path = PurePosixPath(name)
-        if path.is_absolute() or ".." in path.parts or "\\" in name or ":" in name:
-            raise ScanFailure("Unsupported repository path; scan blocked.")
+        name = repository_path(raw_name)
         source = root / name
         if oid is None and not source.exists() and not source.is_symlink():
             continue  # A tracked deletion in the working tree.
-        if forbidden_path(name):
-            raise ScanFailure(f"Private artifact cannot be published: {json.dumps(name)}")
+        check_private_path(name)
         if oid is None:
             if (
                 source.is_symlink()
@@ -91,6 +100,25 @@ def snapshot(root, target, staged=False):
         output = target / name
         output.parent.mkdir(parents=True, exist_ok=True)
         output.write_bytes(data)
+
+
+def history_artifacts(root):
+    """Apply publication policy to every reachable tree, including deleted artifacts."""
+    trees = set(git(root, "log", "--format=%T", "--all", "HEAD").splitlines())
+    for raw_tree in trees:
+        tree = raw_tree.decode("ascii")
+        if not re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", tree):
+            raise ScanFailure("Invalid history tree; scan blocked.")
+        entries = git(root, "ls-tree", "-r", "-z", "--full-tree", "-l", tree).split(b"\0")
+        for entry in filter(None, entries):
+            metadata, raw_name = entry.split(b"\t", 1)
+            mode, kind, _oid, size = metadata.decode("ascii").split()
+            # Check each path, even if another path already used the same blob.
+            check_private_path(repository_path(raw_name))
+            if mode not in {"100644", "100755"} or kind != "blob":
+                raise ScanFailure("History contains symlinks/submodules; publication blocked.")
+            if int(size) > MAX_FILE_BYTES:
+                raise ScanFailure("History contains an oversized file; publication blocked.")
 
 
 def scan(executable, cwd, arguments, config, template):
@@ -180,7 +208,7 @@ def run(root, executable, *, staged=False, history=False, require_history=False)
         target = Path(directory)
         snapshot(root, target, staged)
         findings = scan(executable, target, ["dir", "."], config, template)
-    if history:
+    if history or require_history:
         head = command(["git", "rev-parse", "--verify", "HEAD"], root, accepted=(0, 128))
         if head.returncode:
             if require_history:
@@ -189,6 +217,7 @@ def run(root, executable, *, staged=False, history=False, require_history=False)
         else:
             if git(root, "rev-parse", "--is-shallow-repository").strip() != b"false":
                 raise ScanFailure("Shallow checkout: fetch complete history before scanning.")
+            history_artifacts(root)
             findings += scan(
                 executable, root, ["git", "--log-opts=--all HEAD", "."], config, template
             )
@@ -205,7 +234,9 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--staged", action="store_true", help="Scan the complete Git index")
     parser.add_argument("--history", action="store_true", help="Also scan all reachable history")
-    parser.add_argument("--require-history", action="store_true", help="Fail if no commit exists")
+    parser.add_argument(
+        "--require-history", action="store_true", help="Scan history and fail if no commit exists"
+    )
     args = parser.parse_args()
     executable = (
         ROOT

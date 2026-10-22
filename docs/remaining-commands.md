@@ -30,7 +30,9 @@ usable API keys, guaranteed globally unique IDs, or inputs to mutation commands.
 No key ARN, description, credential, or raw response is exported. Keys are
 classified expired (at/before now), expiring (within the inclusive warning
 window), valid, or unknown. Expiry is UTC epoch seconds for modern keys. Legacy
-da1 metadata and missing/invalid expiry become unknown/incomplete. Empty APIs
+da1 metadata and missing/invalid expiry become unknown/incomplete. Missing or
+empty key IDs produce `key_ref: unknown` and unknown expiry/status rather than a
+fingerprint of an empty string. Empty APIs
 retain a successful summary with zero keys; read errors retain incomplete API
 summaries. No key creation, extension, rotation, or deletion is implemented.
 
@@ -47,7 +49,9 @@ Cost Explorer endpoint region us-east-1, but billing scope is the verified
 LINKED_ACCOUNT across **all** billing regions, including shared/global services.
 Metrics use monthly UnblendedCost, exclude Credit and Refund record types,
 retain AWS Estimated flags, and sum with Decimal separately for each currency
-and service. The requested date window remains explicit in every row. Cost
+and service. Arithmetic preserves the places supplied by AWS, independent of
+the default Decimal precision; nonfinite or invalid amounts make that query
+incomplete and its totals unknown. The requested date window remains explicit in every row. Cost
 Explorer requests can incur query charges; page count/retries determine reads.
 
 Account totals are **not per-app costs**. With both tag options, a second query
@@ -86,8 +90,9 @@ the same branch name do not count as PRs for this repository's branch. Raw gh
 stderr, PR bodies, tokens, and credential diagnostics are not exported.
 
 AWS activity is the latest branch creation/update or job start/end time across
-complete paginated job metadata; active jobs prevent candidates. Names main/dev
-and any AWS PRODUCTION stage are protected, regardless of age. An old feature/*
+complete paginated job metadata; active jobs prevent candidates. Names main/dev,
+any AWS PRODUCTION stage, and the app's configured production branch are
+protected, regardless of age. An old feature/*
 branch can be a **medium-confidence review candidate** only when absent from a
 complete GitHub branch list and without open same-repository PRs/active jobs.
 Old existing branches remain unproven; missing AWS activity evidence is unknown.
@@ -129,6 +134,10 @@ production classification, and no active jobs. Drift requires a new reviewed
 plan. Reads are not a transactional lock: another actor can still act after
 preflight. The RETRY API identifies the existing job; a retry can use current
 configuration/backend state and is not a guaranteed rollback to old resources.
+
+Plan files require the expected envelope types, scalar target fields, valid
+timestamps, and the supported action/stage before authentication. Invalid,
+modified, expired, or excessively nested input is refused with a safe error.
 
 The audit directory defaults to `.amplify-ops/audit` and can be set explicitly
 with `--audit-dir`. Execution creates an exclusive per-plan JSONL file, writes

@@ -2,6 +2,7 @@
 
 import json
 import os
+import re
 from dataclasses import asdict
 from datetime import UTC, datetime, timedelta
 from hashlib import sha256
@@ -24,12 +25,36 @@ def plan_digest(data: dict) -> str:
 
 def validate_plan(plan: DeploymentPlan, now: datetime) -> None:
     try:
+        data = asdict(plan)
+        if any(
+            not isinstance(value, str) for key, value in data.items() if key != "production"
+        ) or not isinstance(plan.production, bool):
+            raise ValueError
+        patterns = {
+            "account_id": r"[0-9]{12}",
+            "region": r"[a-z]{2}(?:-[a-z]+)+-[0-9]+",
+            "app_id": r"d[a-z0-9]{1,19}",
+            "source_job_id": r"[0-9]{1,255}",
+            "plan_id": r"[0-9a-f]{64}",
+        }
+        if (
+            any(not re.fullmatch(pattern, data[key]) for key, pattern in patterns.items())
+            or plan.stage
+            not in {"PRODUCTION", "DEVELOPMENT", "BETA", "EXPERIMENTAL", "PULL_REQUEST"}
+            or not plan.branch.strip()
+            or len(plan.branch) > 255
+            or any(ord(char) < 32 or ord(char) == 127 or char in "<>" for char in plan.branch)
+            or not plan.source_commit_id.strip()
+            or len(plan.source_commit_id) > 255
+        ):
+            raise ValueError
         expiry = datetime.fromisoformat(plan.expires_at)
         created = datetime.fromisoformat(plan.created_at)
+        updated = datetime.fromisoformat(plan.branch_updated_at)
         if (
-            plan.plan_id != plan_digest(asdict(plan))
+            any(moment.utcoffset() is None for moment in (created, expiry, updated))
+            or plan.plan_id != plan_digest(data)
             or plan.action != "RETRY"
-            or not isinstance(plan.production, bool)
             or not created <= now < expiry
             or expiry - created > timedelta(minutes=15)
         ):
@@ -102,16 +127,20 @@ def load_plan(path: Path, *, now: datetime | None = None) -> DeploymentPlan:
             raise ValueError
         content = json.loads(path.read_text(encoding="utf-8"))
         if (
-            content["report_type"] != "deployment_plan"
+            not isinstance(content, dict)
+            or content["report_type"] != "deployment_plan"
+            or type(content["schema_version"]) is not int
             or content["schema_version"] != 1
-            or not content["complete"]
+            or content["complete"] is not True
+            or not isinstance(content["rows"], list)
             or len(content["rows"]) != 1
+            or not isinstance(content["rows"][0], dict)
         ):
             raise ValueError
         plan = DeploymentPlan(**content["rows"][0])
         validate_plan(plan, now or datetime.now(UTC))
         return plan
-    except OSError, ValueError, TypeError, KeyError:
+    except OSError, ValueError, TypeError, KeyError, RecursionError:
         raise DeploymentBlocked(
             "Plan is invalid, modified, unreadable, or expired; create a fresh plan."
         ) from None

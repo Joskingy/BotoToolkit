@@ -26,7 +26,8 @@ def stale_environments(
         "Scope: Amplify Hosting branch/job metadata plus mapped GitHub repository evidence. "
         "Backend associations are noted; individual backend resources are not inventoried "
         "or judged unused.",
-        "main, dev, and AWS PRODUCTION stages are protected. Only old feature/* branches "
+        "main, dev, AWS PRODUCTION stages, and the app's configured production branch "
+        "are protected. Only old feature/* branches "
         "absent from a completely read GitHub branch list, without open same-repository PRs "
         "or active AWS jobs, "
         "are medium-confidence review candidates. Nothing is deleted.",
@@ -80,11 +81,17 @@ def stale_environments(
             last = max(times) if times else None
             exists = branch in github.branches if github is not None else None
             prs = github.open_pr_heads.count(branch) if github is not None else None
-            protected = branch in {"main", "dev"} or raw.get("stage") == "PRODUCTION"
+            protected = (
+                branch in {"main", "dev"}
+                or raw.get("stage") == "PRODUCTION"
+                or app.get("productionBranch", {}).get("branchName") == branch
+            )
             old = last is not None and last <= now - timedelta(days=older_than)
             if protected:
                 classification, confidence = "protected", "high"
-                evidence.append("Protected branch name or production stage.")
+                evidence.append(
+                    "Protected branch name, production stage, or app production mapping."
+                )
             elif active or (prs is not None and prs > 0):
                 classification, confidence = "active", "high"
                 evidence.append(

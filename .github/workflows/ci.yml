@@ -1,0 +1,86 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  merge_group:
+    types: [checks_requested]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Only superseded PR runs cancel each other. Push, queue, and manual runs are independent.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  quality:
+    name: quality
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with:
+          version: '0.13.4'
+          python-version: '3.15.0'
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+      - name: Install locked development dependencies
+        run: uv sync --locked
+      - name: Check lockfile
+        run: uv lock --check
+      - name: Lint
+        run: uv run --locked ruff check .
+      - name: Check formatting
+        run: uv run --locked ruff format --check .
+
+  tests:
+    name: tests (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-latest]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with:
+          version: '0.13.4'
+          python-version: '3.15.0'
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+      - name: Install locked development dependencies
+        run: uv sync --locked
+      - name: Install checksum-verified scanner
+        run: uv run --locked python scripts/install_security_tools.py
+      - name: Verify scanner and scan checkout before tests
+        run: uv run --locked python scripts/security_check.py
+      - name: Run offline regression and real scanner tests
+        run: uv run --locked pytest -q --tb=short
+
+  package:
+    name: package
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with:
+          version: '0.13.4'
+          python-version: '3.15.0'
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+      - name: Install locked development dependencies
+        run: uv sync --locked
+      - name: Build and smoke-test wheel and source distribution
+        run: uv run --locked python scripts/check_distribution.py
