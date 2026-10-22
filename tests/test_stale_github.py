@@ -134,12 +134,12 @@ def test_repository_input_rejected_before_process(monkeypatch, repository):
     run.assert_not_called()
 
 
-def seed(stubs, branches):
+def seed(stubs, branches, **app_fields):
     identity_response(stubs)
     stub = stubs["amplify", REGION]
     stub.add_response(
         "get_app",
-        {"app": app_response(repository="https://github.com/org/repo.git")},
+        {"app": app_response(repository="https://github.com/org/repo.git", **app_fields)},
         {"appId": "d123"},
     )
     stub.add_response("list_branches", {"branches": branches}, {"appId": "d123"})
@@ -203,6 +203,27 @@ def test_recent_branch_config_and_active_jobs_prevent_candidates(harness, monkey
         AwsAccess.connect("brewmaster", ACCOUNT, REGION), REGION, "d123", "org/repo", 90, now=NOW
     )
     assert [row.classification for row in report.rows] == ["recent", "active"]
+
+
+def test_app_production_mapping_protects_branch_without_production_stage(harness, monkeypatch):
+    _, _, stubs = harness
+    branch = "feature/live"
+    stub = seed(
+        stubs,
+        [old_branch(branch)],
+        productionBranch={"branchName": branch},
+    )
+    stub.add_response("list_jobs", {"jobSummaries": []}, {"appId": "d123", "branchName": branch})
+    monkeypatch.setattr(
+        "amplify_ops.stale.repository_evidence", lambda repo: RepositoryEvidence(set(), [])
+    )
+    report = stale_environments(
+        AwsAccess.connect("brewmaster", ACCOUNT, REGION), REGION, "d123", "org/repo", 90, now=NOW
+    )
+    assert report.complete
+    assert report.rows[0].classification == "protected"
+    assert report.rows[0].confidence == "high"
+    assert report.rows[0].github_branch == "absent"
 
 
 def test_missing_github_evidence_never_means_deleted(harness, monkeypatch):

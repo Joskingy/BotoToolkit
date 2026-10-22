@@ -96,6 +96,10 @@ def download_log(url: str) -> tuple[bytes, bool]:
                     raise LogReadFailure("LogTimeLimit")
                 chunk = response.read1(min(16384, MAX_LOG_BYTES + 1 - len(content)))
                 if not chunk:
+                    # HTTPResponse.read1 tolerates early EOF even when the
+                    # declared Content-Length still has unread bytes.
+                    if response.length not in (None, 0):
+                        raise LogReadFailure("LogIncompleteBody")
                     break
                 content.extend(chunk)
             return bytes(content[:MAX_LOG_BYTES]), len(content) > MAX_LOG_BYTES

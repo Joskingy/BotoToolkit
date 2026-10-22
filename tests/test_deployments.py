@@ -23,8 +23,9 @@ from amplify_ops.deployments import (
     create_plan,
     execute_plan,
     load_plan,
+    plan_digest,
 )
-from amplify_ops.models import Report
+from amplify_ops.models import DeploymentPlan, Report
 from amplify_ops.presentation import json_report
 
 runner = CliRunner()
@@ -201,12 +202,38 @@ def test_uncertain_submission_is_claimed_and_not_retried(harness, tmp_path, monk
     assert session.client.call_args.kwargs["config"].retries["total_max_attempts"] == 1
 
 
-def test_cli_rejects_expired_plan_before_aws(harness, tmp_path):
+def test_cli_rejects_invalid_plan_before_aws(harness, tmp_path):
     factory, _, _ = harness
     path = tmp_path / "invalid.json"
     path.write_text("{}")
     result = runner.invoke(app, OPTIONS + ["deploy", "--plan", str(path), "--confirm-plan", "x"])
     assert result.exit_code == 1
+    factory.assert_not_called()
+
+
+def test_cli_rejects_expired_plan_before_aws(harness, tmp_path):
+    factory, _, stubs = harness
+    access = connect(stubs)
+    preflight(stubs)
+    plan = create_plan(
+        access,
+        REGION,
+        "d123",
+        "dev",
+        "1",
+        now=datetime.now(UTC) - timedelta(minutes=16),
+    )
+    path = tmp_path / "expired.json"
+    write_plan(path, plan, access)
+    factory.reset_mock()
+
+    result = runner.invoke(
+        app, OPTIONS + ["deploy", "--plan", str(path), "--confirm-plan", plan.plan_id]
+    )
+
+    assert result.exit_code == 1
+    assert result.stdout == ""
+    assert "expired" in result.stderr
     factory.assert_not_called()
 
 
@@ -220,3 +247,88 @@ def test_job_appearing_after_plan_blocks_execution(harness, tmp_path):
         execute_plan(access, plan, plan.plan_id, None, tmp_path)
     assert session.client.call_count == 3
     assert not list(tmp_path.iterdir())
+
+
+def plan_document(**changes):
+    now = datetime.now(UTC)
+    data = {
+        "account_id": ACCOUNT,
+        "region": REGION,
+        "app_id": "d123",
+        "branch": "dev",
+        "stage": "DEVELOPMENT",
+        "action": "RETRY",
+        "source_job_id": "1",
+        "source_commit_id": "abc",
+        "branch_updated_at": NOW.isoformat(),
+        "production": False,
+        "created_at": (now - timedelta(minutes=1)).isoformat(),
+        "expires_at": (now + timedelta(minutes=14)).isoformat(),
+        **changes,
+    }
+    data["plan_id"] = plan_digest(data)
+    return {"report_type": "deployment_plan", "schema_version": 1, "complete": True, "rows": [data]}
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        {"app_id": ["d123"]},
+        {"region": [REGION]},
+        {"source_job_id": None},
+        {"source_job_id": "unresolved"},
+        {"source_commit_id": {}},
+        {"stage": None},
+        {"branch_updated_at": None},
+        {"created_at": []},
+        {"production": 1},
+    ],
+)
+def test_cli_refuses_malformed_plan_fields_with_valid_digest_before_aws(harness, tmp_path, change):
+    factory, _, _ = harness
+    document = plan_document(**change)
+    path = tmp_path / "malformed.json"
+    path.write_text(json.dumps(document), encoding="utf-8")
+    result = runner.invoke(
+        app,
+        OPTIONS + ["deploy", "--plan", str(path), "--confirm-plan", document["rows"][0]["plan_id"]],
+    )
+    assert result.exit_code == 1
+    assert result.stdout == ""
+    assert "Plan is invalid" in result.stderr
+    assert isinstance(result.exception, SystemExit)
+    factory.assert_not_called()
+
+
+@pytest.mark.parametrize("change", [{"schema_version": True}, {"complete": "false"}])
+def test_plan_envelope_requires_exact_types(tmp_path, change):
+    path = tmp_path / "malformed.json"
+    path.write_text(json.dumps({**plan_document(), **change}), encoding="utf-8")
+    with pytest.raises(DeploymentBlocked):
+        load_plan(path)
+
+
+def test_plan_loader_rejects_invalid_text_with_safe_error(tmp_path):
+    path = tmp_path / "binary.json"
+    path.write_bytes(b"\xff\xfe-not-json")
+    with pytest.raises(DeploymentBlocked, match="unreadable"):
+        load_plan(path)
+
+
+def test_valid_plan_envelope_remains_loadable(tmp_path):
+    document = plan_document()
+    path = tmp_path / "valid.json"
+    path.write_text(json.dumps(document), encoding="utf-8")
+    assert load_plan(path) == DeploymentPlan(**document["rows"][0])
+
+
+def test_deeply_nested_plan_refused_safely_before_aws(harness, tmp_path):
+    factory, _, _ = harness
+    path = tmp_path / "nested.json"
+    path.write_text("[" * 20000 + "0" + "]" * 20000, encoding="utf-8")
+    result = runner.invoke(app, OPTIONS + ["deploy", "--plan", str(path), "--confirm-plan", "x"])
+    assert result.exit_code == 1
+    assert result.stdout == ""
+    assert "Plan is invalid" in result.stderr
+    assert isinstance(result.exception, SystemExit)
+    factory.assert_not_called()

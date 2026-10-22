@@ -1,0 +1,11 @@
+# Require code-owner approval in the GitHub branch ruleset to enforce these reviews.
+/.github/ @Joskingy
+/.gitleaks.toml @Joskingy
+/.githooks/ @Joskingy
+/scripts/ @Joskingy
+/tests/test_security* @Joskingy
+/tests/test_distribution.py @Joskingy
+/tests/conftest.py @Joskingy
+/pyproject.toml @Joskingy
+/uv.lock @Joskingy
+/.python-version @Joskingy

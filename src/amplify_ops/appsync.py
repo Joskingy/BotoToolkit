@@ -50,7 +50,7 @@ def key_expirations(
                             expires = key.get("expires")
                             expiry = None
                             status = "unknown"
-                            if expires is not None and not raw_id.startswith("da1-"):
+                            if raw_id and expires is not None and not raw_id.startswith("da1-"):
                                 try:
                                     expiry = datetime.fromtimestamp(expires, UTC)
                                     status = (
@@ -71,7 +71,11 @@ def key_expirations(
                                         region, "list_api_keys", "UnknownKeyMetadata", "metadata"
                                     )
                                 )
-                            ref = "sha256:" + sha256(raw_id.encode()).hexdigest()[:16]
+                            ref = (
+                                "sha256:" + sha256(raw_id.encode()).hexdigest()[:16]
+                                if raw_id
+                                else "unknown"
+                            )
                             report.rows.append(
                                 ApiKeyExpiry(
                                     region,

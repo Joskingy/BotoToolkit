@@ -100,3 +100,47 @@ placeholders; tests use synthetic identities. A credential/private-metadata
 workflow and local commit/push hooks scan publishable files and Git history.
 See docs/security.md for setup, verified tests, and the repository settings to
 enable once a remote exists. Remote enforcement is not yet configured.
+
+## Deep test audit — completed locally
+
+Read-only module/caller and test-coverage audits found no safe legacy removal.
+The original compatibility command remains supported. New regressions expose and
+fix incomplete log bodies, missing key identity, exact cost arithmetic and invalid
+amount handling, production-branch mapping, plan-file validation, and historical
+private-artifact scanning. See docs/test-audit.md for evidence, checks, and limits.
+
+## Project-local CI skill trial — installed
+
+Installed GitHub Actions Templates under
+`.agents/skills/github-actions-templates/` for use in this project. The skill is
+available on a subsequent turn; no workflow was generated or enabled. Source
+revision and installation verification are recorded in IMPLEMENTATION_REPORT.md.
+
+## CI improvements — implemented locally
+
+Application CI now checks the lockfile, lint/format, the full Linux/Windows test
+matrix with a required working scanner, and clean wheel/source installation.
+Both workflows use verified SHA pins and PR-only cancellation. Weekly action
+updates and user-selected ownership of CI/security controls are configured in
+repository files. See docs/ci.md for exact required checks and GitHub settings
+that need administrator configuration or verification. Remote enforcement and
+actual hosted Linux/Windows execution remain to be verified after pushing.
+
+## Branch and worktree adoption — planned
+
+Reviewed the current directory, Git state, hooks, CI, and local-state behavior.
+The step-by-step guide in docs/branching-and-worktrees.md covers preserving the
+pending changes, creating main/dev/feature worktrees, GitHub rules, release
+promotion, hotfix synchronization, and cleanup. No branch, remote, or repository
+setting was changed. Adoption and hosted enforcement remain future work.
+
+## Branch and worktree adoption — configured with protected PR promotion
+
+The pending audit, CI, skill, and guide changes are preserved in a bootstrap
+commit. The original checkout is on main; sibling dev and bootstrap worktrees
+have separate Python environments and checksum-verified scanners. Dependabot
+version updates are routed to dev in the bootstrap branch. Active GitHub rules
+require pull requests and all five checks on main and dev, block force pushes
+and deletion, and permit merge commits only. Independent approval remains
+optional until another trusted reviewer is available. Promotion uses those
+protected pull requests; see IMPLEMENTATION_REPORT.md and GitHub PR history.

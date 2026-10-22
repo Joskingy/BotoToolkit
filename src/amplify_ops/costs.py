@@ -1,11 +1,21 @@
 """Cost Explorer account/service totals and explicitly tagged estimates."""
 
 from datetime import UTC, date, datetime
-from decimal import Decimal
+from decimal import Decimal, DecimalException, InvalidOperation, localcontext
 
 from amplify_ops.aws import AwsAccess, ResourceFailure
 from amplify_ops.inventory import timestamp
-from amplify_ops.models import CostRow, Report
+from amplify_ops.models import CostRow, Report, ScanError
+
+
+def add_cost(left: Decimal, right: Decimal) -> Decimal:
+    """Preserve all reported places instead of rounding at the ambient precision."""
+    fractional = min(left.as_tuple().exponent, right.as_tuple().exponent, 0)
+    integral = max(left.adjusted() + 1, right.adjusted() + 1, 1)
+    with localcontext() as context:
+        # Reserve one extra integral digit for a carry, including signed amounts.
+        context.prec = integral - fractional + 1
+        return left + right
 
 
 def cost_report(
@@ -74,7 +84,10 @@ def cost_report(
                         for group in period.get("Groups", []):
                             metric = group["Metrics"]["UnblendedCost"]
                             key = group["Keys"][0], metric["Unit"]
-                            amounts[key] = amounts.get(key, Decimal(0)) + Decimal(metric["Amount"])
+                            amount = Decimal(metric["Amount"])
+                            if not amount.is_finite():
+                                raise InvalidOperation
+                            amounts[key] = add_cost(amounts.get(key, Decimal(0)), amount)
                             if period.get("Estimated", False):
                                 estimated.add(key)
                 if kind == "account":
@@ -83,6 +96,10 @@ def cost_report(
                     tagged_complete = True
             except ResourceFailure as error:
                 report.add_error(error.error)
+            except DecimalException:
+                report.add_error(
+                    ScanError("us-east-1", "get_cost_and_usage", "InvalidCostMetadata", "metadata")
+                )
     except ResourceFailure as error:
         report.add_error(error.error)
     finally:
@@ -91,7 +108,11 @@ def cost_report(
     for key in sorted(totals.keys() | tagged.keys()):
         total = totals.get(key, Decimal(0))
         attributed = tagged.get(key, Decimal(0)) if tagged_complete else None
-        remainder = total - attributed if attributed is not None and baseline_complete else None
+        remainder = (
+            add_cost(total, attributed.copy_negate())
+            if attributed is not None and baseline_complete
+            else None
+        )
         report.rows.append(
             CostRow(
                 key[0],
