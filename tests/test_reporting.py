@@ -124,6 +124,23 @@ def test_appsync_auth_failure_stops_next_api(services):
         key_expirations(connect(), [REGION], ["first", "never-called"], None, 30, now=NOW)
 
 
+@pytest.mark.parametrize("raw_id", [None, ""])
+def test_key_without_identity_is_unknown_even_with_future_expiry(services, raw_id):
+    _, _, stubs = services
+    identity_response(stubs)
+    key = {"expires": int((NOW + timedelta(days=31)).timestamp())}
+    if raw_id is not None:
+        key["id"] = raw_id
+    stubs["appsync", REGION].add_response("list_api_keys", {"apiKeys": [key]}, {"apiId": "api1"})
+    report = key_expirations(connect(), [REGION], ["api1"], None, 30, now=NOW)
+    assert not report.complete
+    row = report.rows[0]
+    assert row.status == "unknown"
+    assert row.key_ref == "unknown"
+    assert row.expires_at is None
+    assert not report.rows[-1].keys_complete
+
+
 BASE = {
     "And": [
         {"Dimensions": {"Key": "LINKED_ACCOUNT", "Values": [ACCOUNT]}},
@@ -200,6 +217,51 @@ def test_cost_partial_account_data_is_unknown_not_zero(services):
     assert not report.complete
     assert report.rows[0].account_cost is None and report.rows[0].outside_tag_scope is None
     assert report.rows[0].tag_attributed_estimate == "10"
+
+
+def test_cost_arithmetic_preserves_every_reported_decimal_place(services):
+    _, _, stubs = services
+    identity_response(stubs)
+    stub = stubs["ce", REGION]
+    stub.add_response(
+        "get_cost_and_usage",
+        cost_page("123456789.12345678912345678912", NextPageToken="next"),
+        PARAMS,
+    )
+    stub.add_response(
+        "get_cost_and_usage",
+        cost_page("0.00000000000000000001"),
+        {**PARAMS, "NextPageToken": "next"},
+    )
+    filtered = {"And": [BASE, {"Tags": {"Key": "App", "Values": ["fixture"]}}]}
+    stub.add_response(
+        "get_cost_and_usage",
+        cost_page("0.00000000000000000002"),
+        {**PARAMS, "Filter": filtered},
+    )
+    report = cost_report(connect(), date(2026, 9, 1), date(2026, 10, 1), "App", "fixture")
+    assert report.complete
+    row = report.rows[0]
+    assert row.account_cost == "123456789.12345678912345678913"
+    assert row.tag_attributed_estimate == "2E-20"
+    assert row.outside_tag_scope == "123456789.12345678912345678911"
+
+
+@pytest.mark.parametrize("amount", ["NaN", "Infinity", "not-a-cost"])
+def test_invalid_cost_amount_is_incomplete_and_never_exported(services, amount):
+    _, _, stubs = services
+    identity_response(stubs)
+    response = cost_page("1", NextPageToken="bad")
+    stubs["ce", REGION].add_response("get_cost_and_usage", response, PARAMS)
+    stubs["ce", REGION].add_response(
+        "get_cost_and_usage", cost_page(amount), {**PARAMS, "NextPageToken": "bad"}
+    )
+    report = cost_report(connect(), date(2026, 9, 1), date(2026, 10, 1), None, None)
+    assert not report.complete
+    assert report.rows[0].account_cost is None
+    assert report.rows[0].outside_tag_scope is None
+    assert report.errors[-1].code == "InvalidCostMetadata"
+    assert amount not in json_report(report)
 
 
 @pytest.mark.parametrize(

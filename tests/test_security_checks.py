@@ -84,6 +84,78 @@ def test_deleted_historical_secret_is_still_blocked(repository, scanner, capsys)
     assert "github-pat" in output and canary not in output
 
 
+def test_clean_history_passes_when_require_history_implies_scan(repository, scanner):
+    path = repository / "README.md"
+    path.write_text("ACCOUNT_ID APP_ID API_ID")
+    security.git(repository, "add", "README.md")
+    security.git(repository, "commit", "--quiet", "-m", "Clean placeholders")
+    path.write_text("ACCOUNT_ID APP_ID API_ID OWNER/REPOSITORY")
+    security.git(repository, "add", "README.md")
+    security.git(repository, "commit", "--quiet", "-m", "More clean placeholders")
+    assert security.run(repository, scanner, require_history=True) == 0
+
+
+@pytest.mark.parametrize("name", ["operator-report.json", ".env", "private/notes.md"])
+def test_deleted_historical_private_artifacts_blocked_without_signatures(repository, scanner, name):
+    path = repository / name
+    path.parent.mkdir(exist_ok=True)
+    path.write_text("Private operational notes without a known credential signature")
+    security.git(repository, "add", name)
+    security.git(repository, "commit", "--quiet", "-m", "Synthetic private artifact")
+    path.unlink()
+    security.git(repository, "add", name)
+    security.git(repository, "commit", "--quiet", "-m", "Remove artifact")
+    assert security.run(repository, scanner) == 0
+    with pytest.raises(security.ScanFailure, match="Private artifact"):
+        security.run(repository, scanner, history=True, require_history=True)
+
+
+def test_reused_blob_in_historical_private_path_is_not_deduplicated_away(repository, scanner):
+    path = repository / "notes.md"
+    path.write_text("Plain synthetic notes")
+    security.git(repository, "add", "notes.md")
+    security.git(repository, "commit", "--quiet", "-m", "Ordinary notes")
+    (repository / "private").mkdir()
+    security.git(repository, "mv", "notes.md", "private/notes.md")
+    security.git(repository, "commit", "--quiet", "-m", "Move unchanged notes to private path")
+    security.git(repository, "rm", "private/notes.md")
+    security.git(repository, "commit", "--quiet", "-m", "Remove notes")
+    assert security.git(repository, "rev-parse", "HEAD~2:notes.md") == security.git(
+        repository, "rev-parse", "HEAD~1:private/notes.md"
+    )
+    with pytest.raises(security.ScanFailure, match="Private artifact"):
+        security.run(repository, scanner, require_history=True)
+
+
+@pytest.mark.parametrize("mode", ["120000", "160000"])
+def test_deleted_historical_symlink_or_submodule_blocks_publication(repository, scanner, mode):
+    path = repository / "README.md"
+    path.write_text("Clean placeholder")
+    security.git(repository, "add", "README.md")
+    security.git(repository, "commit", "--quiet", "-m", "Clean base")
+    source = "HEAD:README.md" if mode == "120000" else "HEAD"
+    oid = security.git(repository, "rev-parse", source).decode().strip()
+    # Build Git modes directly; Windows symlink privileges and a remote are unnecessary.
+    security.git(repository, "update-index", "--add", "--cacheinfo", f"{mode},{oid},old-link")
+    security.git(repository, "commit", "--quiet", "-m", "Synthetic historical mode")
+    security.git(repository, "update-index", "--force-remove", "old-link")
+    security.git(repository, "commit", "--quiet", "-m", "Remove historical mode")
+    with pytest.raises(security.ScanFailure, match="symlinks/submodules"):
+        security.run(repository, scanner, require_history=True)
+
+
+def test_deleted_historical_oversized_file_blocks_publication(repository, scanner):
+    path = repository / "large.txt"
+    path.write_bytes(b"x" * (security.MAX_FILE_BYTES + 1))
+    security.git(repository, "add", "large.txt")
+    security.git(repository, "commit", "--quiet", "-m", "Synthetic oversized file")
+    path.unlink()
+    security.git(repository, "add", "large.txt")
+    security.git(repository, "commit", "--quiet", "-m", "Remove oversized file")
+    with pytest.raises(security.ScanFailure, match="oversized"):
+        security.run(repository, scanner, require_history=True)
+
+
 def test_ignored_reports_excluded_but_force_staged_reports_blocked(repository, scanner):
     (repository / ".gitignore").write_text("*.json\n")
     (repository / "report.json").write_text("{}")
@@ -103,9 +175,10 @@ def test_missing_tool_blocks_publication(repository):
         security.run(repository, repository / "missing-scanner")
 
 
-def test_ci_rejects_missing_history(repository, scanner):
+@pytest.mark.parametrize("history", [False, True])
+def test_ci_rejects_missing_history(repository, scanner, history):
     with pytest.raises(security.ScanFailure, match="History required"):
-        security.run(repository, scanner, history=True, require_history=True)
+        security.run(repository, scanner, history=history, require_history=True)
 
 
 def test_security_scripts_support_runner_python():

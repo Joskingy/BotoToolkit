@@ -8,8 +8,7 @@ your normal credential setup is needed for live AWS use, not for offline tests.
 
 ## First clone
 
-Once the repository has been published, replace OWNER/REPOSITORY with its
-actual location. The local destination name below is just a folder name.
+Replace OWNER/REPOSITORY with the intended repository location. The local destination name below is just a folder name.
 
 ```powershell
 git clone https://github.com/OWNER/REPOSITORY.git amplify-ops
@@ -39,6 +38,14 @@ exercise a real local Gitleaks binary and disposable repositories; install that
 binary before running the suite to avoid skipping those cases. Tests do not
 need AWS access or GitHub login and do not submit real deployments.
 
+## Continuous integration
+
+For the checks that run on pull requests, see [CI and GitHub setup](docs/ci.md).
+CI tests Linux and Windows, checks lint/format and the lockfile, validates built
+package installation, and scans private information. It uses no AWS credentials.
+To reproduce the package job, use uv 0.13.4 and run
+`uv run --locked python scripts/check_distribution.py`.
+
 ## First live read
 
 Configure/sign in to the intended local AWS profile brewmaster using your
@@ -58,6 +65,12 @@ local storage. Start with read-only commands; deploy requires a separate
 reviewed plan, explicit confirmations, and separate AWS permissions.
 
 ## Everyday work
+
+Use main for reviewed releases, dev for integration, and a separate feature/*
+or codex/* branch and worktree for each task. Target dev in ordinary pull
+requests; promote dev to main with a merge commit. See [the branch and worktree
+guide](docs/branching-and-worktrees.md) for setup, synchronization, and cleanup.
+GitHub protection and review requirements must also be configured remotely.
 
 ```powershell
 uv sync --locked
