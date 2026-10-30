@@ -144,3 +144,15 @@ require pull requests and all five checks on main and dev, block force pushes
 and deletion, and permit merge commits only. Independent approval remains
 optional until another trusted reviewer is available. Promotion uses those
 protected pull requests; see IMPLEMENTATION_REPORT.md and GitHub PR history.
+
+
+## Developer workflow automation — implemented locally
+
+Added dev.ps1 and scripts/dev.py with start, setup, check, pr, and promote
+commands. Features start from fetched origin/dev in isolated sibling worktrees.
+The helper initializes locked environments/hooks/scanners, runs local checks,
+and opens explicit feature-to-dev or dev-to-main PRs. Meaningful regression
+tests use disposable Git repositories and mocked GitHub calls. Review, commits,
+merges, tags, and cleanup remain explicit. Merge the helper into dev before
+using start for new features; see docs/developer-helper.md and the latest
+verification record in IMPLEMENTATION_REPORT.md.

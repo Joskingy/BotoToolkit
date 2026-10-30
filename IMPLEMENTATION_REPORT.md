@@ -573,3 +573,116 @@ uv run --locked pytest -q --tb=short (195 passed in 85.94 seconds),
 uv run --locked ruff check ., uv run --locked ruff format --check .,
 uv run --locked python scripts/check_distribution.py, and git diff --check
 passed. The checksum-verified scanner and its history/canary checks also passed.
+
+## Developer workflow automation — October 22, 2026
+
+### Implemented changes
+
+Implemented on codex/developer-workflow in an isolated sibling worktree. The
+existing main and dev checkouts remain clean. No application dependency, AWS
+behavior, package interface, CI workflow, scanner policy, or GitHub setting was
+changed.
+
+- Added dev.ps1, a PowerShell launcher using the pinned local toolchain when
+  available, with a normal installed-uv fallback and preserved exit codes.
+- Added scripts/dev.py. start fetches origin/dev, validates names and existing
+  refs/paths, creates a sibling worktree, and initializes it. setup installs
+  locked dependencies and the checksum-verified scanner, preserves custom
+  hooks, enables the versioned hooks when appropriate, and scans history.
+- check runs scanner verification, lockfile validation, pytest, Ruff lint and
+  formatting, clean distribution installation, and whitespace checks. Each
+  worktree owns its environment and check scratch directory. Failures stop
+  later steps; checks never silently reformat source or rewrite the lockfile.
+- pr requires a clean, committed feature/* or codex/* branch containing current
+  dev, runs checks, verifies the branch did not change during checks, and pushes
+  without force before opening/reusing a PR into dev. Fetch/push repositories
+  must agree. promote opens/reuses published dev into main and verifies main's
+  ancestry, leaving release verification to the required hosted checks.
+- Added 28 regression cases in tests/test_dev_workflow.py. These use real
+  disposable Git histories/remotes and mocked GitHub calls, not live services.
+  Coverage includes correct worktree bases, isolation, preserved files/hooks,
+  setup recovery, name/ref collisions, dirty/incorrect branches, outdated dev,
+  failed checks, concurrent branch changes, PR reuse/routing, push destinations,
+  promotion ancestry, and CLI failure codes.
+- Added docs/developer-helper.md and linked it from CONTRIBUTING.md and the
+  branch/worktree guide. Updated ROADMAP.md. Documentation explains startup,
+  manual review/commit/merge steps, recovery, portability, and rollout.
+
+### Step-by-step verification and results
+
+1. Ran .\dev.ps1 setup from the actual linked feature checkout. It created that
+   checkout's .venv, installed all 21 locked packages, installed checksum-verified
+   Gitleaks 8.24.3, and passed the file/history scan and scanner canaries.
+2. Ran the focused developer-workflow tests. The first invocation could not use
+   the existing shared Windows pytest temporary directory due to its filesystem
+   permissions. Rerunning with an isolated temporary directory exposed two real
+   bugs: Git's normalized hook configuration keys and remote-ref matching.
+   Fixed both, preserving the failing regression cases. The helper now gives
+   child check processes their own .uv/check-temp directory. The corrected
+   focused suite passed 26 tests in 17.95 seconds; two additional hook/CLI
+   regression cases were subsequently included in the full suite below.
+3. Ran .\dev.ps1 check with uv 0.13.4 and Python 3.15.0. UV_CACHE_DIR selected the
+   existing ignored shared download cache; UV_OFFLINE=true used already cached
+   dependencies. The helper executed these exact checks successfully:
+
+   ```text
+   uv sync --locked
+   uv run --locked python scripts/security_check.py --history --require-history
+   uv lock --check
+   uv run --locked pytest -q --tb=short
+   uv run --locked ruff check .
+   uv run --locked ruff format --check .
+   uv run --locked python scripts/check_distribution.py
+   git diff --check
+   ```
+
+   Results: **223 tests passed in 84.40 seconds**, no skips; lint passed;
+   formatting passed for 45 files; the lockfile resolved 21 packages. Wheel and
+   source-derived wheel builds, archive checks, clean installations, isolated
+   imports, and both console entry points passed. Scanner canaries and all
+   reachable history passed. The helper returned exit code 0.
+4. Ran .\dev.ps1 --help successfully. Ran the launcher through PowerShell with
+   start INVALID and verified exit code 1, the actionable naming error, and no
+   worktree creation. Checked sys.prefix and both application imports to confirm
+   they resolve to this feature checkout's environment and src directory.
+5. Confirmed git status --short is empty in the original main and dev checkouts.
+   Checked gh auth status --hostname github.com without exposing its output:
+   it returned 1, so persistent GitHub CLI authentication remains incomplete.
+6. After recording results, reran the history scan and git diff --check before
+   saving the reviewed feature commit. Removed a trailing blank line reported
+   by the whitespace check; both checks passed. The pre-commit hook also
+   verified the staged content successfully.
+
+### Branch reconciliation verification
+
+Merged origin/dev into the developer-workflow feature branch without conflicts.
+Ran .\dev.ps1 check with cached dependencies: scanner/history and canaries,
+lockfile, 223 pytest cases (107.07 seconds), Ruff lint/format, package builds
+and clean installations, and git diff --check passed. actionlint 1.7.12 also
+passed the updated workflows. No AWS calls or PR merges were performed.
+
+### Synchronization after the quarterly schedule PR
+
+Merged updated origin/dev into the developer-workflow branch. Resolved the
+implementation report conflict by retaining the quarterly schedule and developer
+workflow sections. Ran .\dev.ps1 check with cached dependencies: security and
+full history scans, lockfile, 223 pytest cases (94.68 seconds), Ruff lint and
+format, clean distribution installation, and git diff --check passed. No AWS
+calls or pull request merges were performed.
+
+### Remaining rollout and limits
+
+The helper is prepared locally; no real feature push, PR creation, merge, tag,
+branch deletion, or GitHub administration was performed for this change. Run
+gh auth login --hostname github.com --web once, then use the implementation
+feature checkout's dev.ps1 pr command to publish it for review. Merge that PR
+into dev before using start to create new features containing the helper.
+Promote through the existing protected dev-to-main process when ready.
+
+No new GitHub secrets, workflow permissions, or rules are required. The existing
+hosted Linux/Windows jobs must validate the new commit before merge; this local
+Windows run does not establish Linux success. GitHub PR calls were mocked in
+tests, while pushes/worktrees were exercised against disposable local remotes.
+Custom hooks require manual reconciliation; fork/Enterprise PR workflows are
+outside this first helper. Existing reviewer and Dependabot administrator
+choices from the prior report remain unchanged. No live AWS call was made.

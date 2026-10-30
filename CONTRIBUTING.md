@@ -3,7 +3,7 @@
 The recommended contributor workflow is a Git clone plus uv. Keep pyproject.toml,
 uv.lock, and .python-version in Git; each developer creates their own .venv.
 The application currently requires Python 3.15+. Git and uv are prerequisites;
-GitHub CLI is needed only for the stale command's GitHub evidence. AWS CLI or
+GitHub CLI is needed for PR automation and the stale command's GitHub evidence. AWS CLI or
 your normal credential setup is needed for live AWS use, not for offline tests.
 
 ## First clone
@@ -65,6 +65,12 @@ local storage. Start with read-only commands; deploy requires a separate
 reviewed plan, explicit confirmations, and separate AWS permissions.
 
 ## Everyday work
+
+Use `dev.ps1` for the automated path: `start NAME` creates and initializes a
+feature worktree, `check` runs local checks, `pr` checks/pushes and opens a PR
+into dev, and `promote` opens dev into main. See the
+[developer helper guide](docs/developer-helper.md) for prerequisites, examples,
+recovery, and the explicit review/commit/merge steps.
 
 Use main for reviewed releases, dev for integration, and a separate feature/*
 or codex/* branch and worktree for each task. Target dev in ordinary pull
