@@ -686,3 +686,19 @@ tests, while pushes/worktrees were exercised against disposable local remotes.
 Custom hooks require manual reconciliation; fork/Enterprise PR workflows are
 outside this first helper. Existing reviewer and Dependabot administrator
 choices from the prior report remain unchanged. No live AWS call was made.
+
+## Synchronize the promotion back into dev
+
+Created an isolated branch from origin/dev and merged origin/main to preserve
+the promotion merge ancestry. The merge had no content conflicts. The original
+main worktree's four uncommitted files were retained and a local patch was saved;
+a comparison confirmed the patch remained unchanged.
+
+In the synchronization checkout, ran .\dev.ps1 setup and .\dev.ps1 check
+with the pinned toolchain and cached dependencies. The checksum-verified scanner
+and history/canary checks passed; uv lock --check passed; uv run --locked pytest
+-q --tb=short passed 223 tests in 107.59 seconds without skips; uv run --locked
+ruff check . and uv run --locked ruff format --check . passed (45 files); and
+uv run --locked python scripts/check_distribution.py and git diff --check passed.
+No AWS operations were performed. GitHub checks must pass on the synchronization
+PR before merging.
