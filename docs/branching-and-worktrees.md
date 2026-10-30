@@ -7,6 +7,11 @@ adoption progress and verification, see the latest branch/worktree section in
 step from the stated directory and stop when a command fails. Replace
 OWNER/REPOSITORY with the intended GitHub repository. No AWS access is needed.
 
+For the current automated everyday workflow, use the
+[developer helper](developer-helper.md): `start`, `setup`, `check`, `pr`, and
+`promote`. The manual commands below remain useful for understanding the steps,
+conflict resolution, hotfixes, synchronization, and cleanup.
+
 ## 1. Understand the starting point
 
 The local repository has one worktree, on main, and an origin/main tracking ref.
@@ -457,6 +462,6 @@ Keep the main and dev worktrees permanently.
 - A sample merged feature worktree can be removed without losing local material.
 
 The directory structure needs no application refactor for this model. Optional
-follow-ups are a PR template reminding authors of the correct base, a helper
-that bootstraps each checkout, and a branch-routing check. Implement those only
-after the manual workflow has been exercised successfully.
+follow-ups are a PR template reminding authors of the correct base and a
+branch-routing check. The developer helper now automates worktree setup, local
+checks, and correctly targeted PR creation after the manual workflow was exercised.
