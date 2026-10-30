@@ -618,6 +618,14 @@ changed.
    by the whitespace check; both checks passed. The pre-commit hook also
    verified the staged content successfully.
 
+### Branch reconciliation verification
+
+Merged origin/dev into the developer-workflow feature branch without conflicts.
+Ran .\dev.ps1 check with cached dependencies: scanner/history and canaries,
+lockfile, 223 pytest cases (107.07 seconds), Ruff lint/format, package builds
+and clean installations, and git diff --check passed. actionlint 1.7.12 also
+passed the updated workflows. No AWS calls or PR merges were performed.
+
 ### Remaining rollout and limits
 
 The helper is prepared locally; no real feature push, PR creation, merge, tag,
