@@ -538,3 +538,38 @@ The resulting commit and PR identifiers are reported with task completion.
 Remaining administrator choices are the second reviewer/mandatory approvals,
 custom private-metadata push rules where supported, and whether to enable
 Dependabot security updates in addition to scheduled action-version updates.
+
+## Quarterly Dependabot schedule
+
+Changed .github/dependabot.yml from weekly to quarterly version-update checks
+at the user's request. GitHub Actions updates continue to target dev with a
+five-open-PR limit. Updated docs/ci.md and ROADMAP.md to describe the current
+schedule. GitHub documents quarterly runs on the first day of January, April,
+July, and October. The configuration takes effect after reaching the default
+branch; this request did not commit, push, or change remote settings.
+
+Verification:
+
+1. Confirmed quarterly is supported in GitHub's Dependabot options reference:
+   https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-options-reference#schedule
+2. Inspected the diff: the sole Dependabot configuration change is interval.
+3. Ran uv run --locked ruff check .: passed.
+4. Ran uv run --locked ruff format --check .: passed, 42 files formatted.
+5. Initial uv run --locked pytest -q --tb=short: 46 passed, 149 setup errors
+   caused by an inherited unavailable AWS profile and inaccessible existing
+   temporary directories. No test assertions or application code were changed.
+6. Reran uv run --locked pytest -q --tb=short --basetemp <isolated-temp>/pytest,
+   with process-local AWS_PROFILE/AWS_DEFAULT_PROFILE removed for mocked tests,
+   UV_CACHE_DIR=.uv/cache, and TEMP/TMP set to a new ignored .uv directory:
+   195 passed in 79.42 seconds, no skips. One non-failing pytest-cache write
+   warning remains due to the existing cache directory. No live AWS calls ran.
+7. Ran git diff --check: passed.
+
+### Branch reconciliation verification
+
+The pending changes were copied to a feature worktree based on origin/dev; the
+original main working files were retained. On that branch, uv lock --check,
+uv run --locked pytest -q --tb=short (195 passed in 85.94 seconds),
+uv run --locked ruff check ., uv run --locked ruff format --check .,
+uv run --locked python scripts/check_distribution.py, and git diff --check
+passed. The checksum-verified scanner and its history/canary checks also passed.
