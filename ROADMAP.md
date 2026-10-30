@@ -120,7 +120,7 @@ revision and installation verification are recorded in IMPLEMENTATION_REPORT.md.
 
 Application CI now checks the lockfile, lint/format, the full Linux/Windows test
 matrix with a required working scanner, and clean wheel/source installation.
-Both workflows use verified SHA pins and PR-only cancellation. Weekly action
+Both workflows use verified SHA pins and PR-only cancellation. Quarterly action
 updates and user-selected ownership of CI/security controls are configured in
 repository files. See docs/ci.md for exact required checks and GitHub settings
 that need administrator configuration or verification. Remote enforcement and

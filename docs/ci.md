@@ -72,7 +72,7 @@ files alone. Remote execution and enforcement have not been verified locally.
    bypasses. Custom private account/app-ID patterns need separate configuration
    where available. A push-triggered workflow runs after upload; required checks
    prevent merging, not the initial upload or PR creation.
-7. Enable Dependabot version updates and review its weekly GitHub Actions PRs.
+7. Enable Dependabot version updates and review its quarterly GitHub Actions PRs.
    Keep full SHA pins. Embedded uv/Python/Gitleaks version pins require deliberate
    maintenance; Gitleaks changes also require verified Windows/Linux checksums
    and review of the scanner/test version references. No automatic merges are set.
