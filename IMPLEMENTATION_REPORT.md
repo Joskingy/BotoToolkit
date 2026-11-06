@@ -5,6 +5,111 @@ Generated AWS timestamps are UTC and therefore show October 17 for later checks.
 This public report omits the local workspace path and live identifiers.
 Commands below are sanitized reproductions; placeholders must be resolved locally.
 
+## CI noise reduction — 6 November 2026
+
+Prepared in an isolated codex/reduce-ci-noise worktree from origin/dev. Removed
+the Dependabot configuration and closed its five open update PRs (#11–#15)
+without merging. PR #16 remains untouched. Existing main/doctor changes and all
+other worktrees remain intact, verified with their revisions, status records,
+and SHA-256 fingerprints of pending files before and after this work.
+
+All three workflows now run on PRs, main pushes, merge queue requests, and manual
+dispatch. Feature/dev branch pushes and tag pushes do not start duplicate runs.
+OSV's schedule changes from daily to Monday at 07:23 UTC. All six check names,
+Linux/Windows suites, package verification, full-history secret scanning, scanner
+canaries, action pins, permissions, and PR cancellation behavior are unchanged.
+No application code, tests, dependency versions, scanner rules, or hooks changed.
+
+Updated the CI, dependency monitoring, security, and branch/worktree guides and
+roadmap. Dependencies are maintained through manual feature PRs into dev, monthly
+or before release. Historical audit/report entries remain as dated evidence.
+Dependabot alerts/security fixes were already disabled; no security protections
+or personal notification preferences were changed. No AWS calls were performed.
+
+The cleanup is prepared for review only. Dependabot's configuration removal and
+the weekly schedule take effect after promotion to main. Until then the old
+default-branch configuration can still generate updates and daily runs. No PR
+was merged as part of this request.
+
+Verification used uv 0.13.4, Python 3.15.0, the offline package cache, a separate
+worktree virtual environment, and writable worktree-local TEMP/TMP. AWS_PROFILE
+and AWS_DEFAULT_PROFILE were cleared only for the mocked test process.
+
+1. `actionlint` 1.7.12 against all three workflows: passed. Compared each workflow
+   with origin/dev: only the main push filter and weekly cron changed; the entire
+   permissions/concurrency/jobs content is identical. Confirmed no application,
+   test, dependency, scanner-rule, or hook diff. No regression test was removed.
+2. `uv lock --check`: passed, 21 packages resolved.
+3. `uv run --locked pytest -q --tb=short`: **288 passed**, no skips, 154.65s.
+4. `uv run --locked ruff check .`: passed.
+5. `uv run --locked ruff format --check .`: passed, 50 files formatted.
+6. `uv run --locked python scripts/check_distribution.py`: passed wheel/source
+   builds, archive inspection, isolated installations, and command smoke checks.
+7. `uv run --locked python scripts/security_check.py --history`: passed working
+   files, reachable history, and scanner canaries; repeated after the final report
+   update before publication. The existing uv/build-backend version warning is
+   non-failing; dependency versions were deliberately left unchanged.
+8. `git diff --check`: passed. Compared the saved revisions, pending-file hashes,
+   and Git status for all eight pre-existing worktrees: unchanged.
+9. GitHub confirmed all five Dependabot PRs closed without merging, with no open
+   Dependabot PRs remaining. Required-check settings and PR #16 were not modified.
+
+Hosted PR validation is reported separately after publishing. No new settings
+are required for the existing six required checks; activation requires merging
+through dev and promoting the workflow/configuration changes into main.
+
+## Completed-worktree retirement and PR resolution — 6 November 2026
+
+Retired the four completed checkouts for codex/dependabot-quarterly,
+codex/developer-workflow, codex/sync-main-promotion, and codex/security-hardening.
+Each checkout was clean and its HEAD was already an ancestor of dev. Resolved
+the four absolute removal paths against an explicit allowlist before using
+Git's normal worktree removal; no forced removal or branch deletion was needed.
+
+Preserved every file, including ignored environments, caches, test artifacts,
+local scripts, and backups, in four local ZIP archives under ignored
+`.uv/worktree-retirement-2026-11-06/`. Verified all 32,479 archived files against
+SHA-256 hashes and checked the original files again before removal. Saved
+per-file manifests, archive hashes, and retired branch revisions. Branches and
+committed history remain available. Recovery material is not published.
+
+The five requested worktrees (main, dev, doctor, and the PR #16/#17 checkouts)
+retain their original HEADs, pending-file hashes, and Git status. Existing local
+reports, deployment state, recovery stashes, and private files were not moved.
+The only main-directory additions are ignored recovery/verification artifacts.
+
+Merged PR #16 with a merge commit after verifying its required checks. Updated
+PR #17 by merging the new origin/dev in a temporary detached checkout, preserving
+the existing PR worktree. The merge had no content conflicts and changed only
+the implementation report and roadmap. PR #17 will be merged only after its
+new revision passes all six required checks. No live AWS operations ran.
+
+Verification used uv 0.13.4, Python 3.15.0, the offline cache, a temporary
+worktree environment, and writable worktree-local TEMP/TMP directories. Cleared
+AWS_PROFILE and AWS_DEFAULT_PROFILE only in the mocked test process.
+
+1. Full ZIP round-trip verification: all 32,479 files and archive hashes passed;
+   four archives total 171.6 MiB. Rechecked source hashes before removal.
+2. `git merge-base --is-ancestor HEAD origin/dev` and clean-status checks passed
+   for all four retired worktrees. Normal `git worktree remove` succeeded.
+3. Compared original HEAD/status/pending-file hashes for the five retained
+   worktrees after cleanup: unchanged. Recovery branches/stashes remain.
+4. `uv lock --check`: passed, 21 packages resolved.
+5. `uv run --locked pytest -q --tb=short`: **288 passed**, no skips, 138.05s.
+6. `uv run --locked ruff check .`: passed.
+7. `uv run --locked ruff format --check .`: passed, 50 files formatted.
+8. `uv run --locked python scripts/check_distribution.py`: passed wheel/source
+   builds, archive inspection, clean installs, and command smoke checks.
+9. `uv run --locked python scripts/security_check.py --history`: passed files,
+   reachable history, and canaries; repeated after this final report update.
+10. `actionlint` 1.7.12 against all three workflows and `git diff --check`: passed.
+
+The local dev/doctor checkouts intentionally remain at their original revisions
+per the instruction to leave them untouched; fetching updates remote-tracking
+references only. Hosted checks and the authorized PR #17 merge outcome are
+reported separately, with the final local preservation check in the recovery
+folder's RESULT.md. This operation does not promote the cleanup from dev to main.
+
 ## Outcome and command coverage
 
 | Milestone | Commands | Implemented behavior |
@@ -793,3 +898,57 @@ responses fail closed and require investigation. Text-only publication deliberat
 blocks binary assets rather than providing an archive-scanning bypass. Existing
 local deployment-claim and IAM operating limits remain documented. A5 worktree
 cleanup, doctor, and optional features remain separate work.
+
+## Promotion PR #10 and synchronization preparation — 6 November 2026
+
+### Changes
+
+Confirmed all six required checks passed and merged PR #10 into main using a
+merge commit, with the expected source revision enforced. The existing main/dev
+rule requires quality, both platform test jobs, package, sensitive-information,
+and python-vulnerabilities. Daily vulnerability monitoring is now present on
+the default branch. No rule protection was weakened.
+
+Created codex/sync-main-pr10 from current origin/dev in a separate worktree and
+fast-forwarded it to origin/main. Both branches had identical file trees after
+promotion; the synchronization carries the promotion ancestry back into dev.
+Only this verification record and roadmap status are added by the sync branch.
+Its PR targets dev and is prepared for review, not merged.
+
+Updated the main worktree to origin/main after copying, checksumming, and stashing
+all pending tracked/untracked files. The recovery stash is retained. Resolved the
+report's additive conflict by retaining both sections. The formerly untracked
+audit document is now tracked upstream with the complete original audit plus
+the remediation note. Original added text remains present and other untracked
+files retain their original bytes. No private ignored files were removed.
+
+Dev matches origin/dev and remains clean. Feature/doctor already includes current
+dev and retains its fourteen pending files. Main retains five pending files;
+its audit document is absorbed into upstream. Historical merged worktrees are
+retained unchanged. Main and dev will finish ancestry synchronization only after
+the new PR is approved and merged; no protected branch was bypassed or reset.
+
+### Verification
+
+Used pinned uv 0.13.4 and Python 3.15.0, the local offline package cache, a fresh
+worktree environment, and worktree-local TEMP/TMP folders. Cleared AWS_PROFILE
+and AWS_DEFAULT_PROFILE only in the test process. Ran in this order:
+
+1. `uv lock --check`: passed, 21 packages resolved.
+2. `uv run --locked pytest -q --tb=short`: **288 passed**, no skips, 129.09s.
+3. `uv run --locked ruff check .`: passed.
+4. `uv run --locked ruff format --check .`: passed, 50 files already formatted.
+5. `uv run --locked python scripts/check_distribution.py`: passed wheel/source
+   builds, private-path inspection, isolated installs, and entry-point checks.
+6. `uv run --locked python scripts/security_check.py --history`: passed working
+   files, reachable history, and detection canaries. Repeated after final report
+   edits before publishing. The restored main worktree passed the same scan.
+7. `git diff --check`: passed. Confirmed no unresolved main conflicts and checked
+   original additions against checksummed recovery copies. Untracked audit text
+   is retained upstream; the other untracked files match their original bytes.
+8. GitHub confirmed PR #10 is merged with a two-parent merge commit. Verified
+   the synchronization branch includes origin/main and origin/dev. Its PR will
+   remain open for review, with hosted checks reported separately.
+
+No live AWS requests or deployments were performed. Pending application feature
+work and local documentation are excluded from the synchronization PR.

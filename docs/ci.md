@@ -1,8 +1,10 @@
 # Continuous integration and GitHub setup
 
 The workflows validate source, scanner policy, and package installation without
-AWS access or application secrets. They run on every push, pull request, merge
-queue request, and manual dispatch. Documentation-only changes are included.
+AWS access or application secrets. They run on every pull request, pushes to main,
+merge queue requests, and manual dispatch. Feature/dev branch pushes and tag pushes
+do not start a second set of runs. Documentation-only PRs still run all six checks.
+The OSV workflow also runs weekly on Monday at 07:23 UTC on the default branch.
 
 ## Jobs and toolchain
 
@@ -73,12 +75,12 @@ files alone. Remote execution and enforcement have not been verified locally.
    bypasses. Custom private account/app-ID patterns need separate configuration
    where available. A push-triggered workflow runs after upload; required checks
    prevent merging, not the initial upload or PR creation.
-7. Enable Dependabot version updates and review its quarterly GitHub Actions PRs.
-   Python `uv` updates run weekly and target dev. Adding this entry does not enable
-   GitHub dependency alerts/security updates; verify those settings separately.
-   Keep full SHA pins. Embedded uv/Python/Gitleaks version pins require deliberate
+7. Dependabot version-update automation is removed. Review dependencies manually
+   monthly or before a release, using a feature PR into dev. Keep full SHA pins.
+   Embedded uv/Python/Gitleaks version pins require deliberate
    maintenance; Gitleaks changes also require verified Windows/Linux checksums
-   and review of the scanner/test version references. No automatic merges are set.
+   and review of the scanner/test version references. Keep the OSV check required;
+   it reports advisories without opening update PRs. No automatic merges are set.
 8. Verify enforcement with disposable PRs and nonfunctional canaries: a broken
    assertion must fail tests, an invalid package must fail the package job, and a
    synthetic secret must fail the security check and prevent merging. Exercise

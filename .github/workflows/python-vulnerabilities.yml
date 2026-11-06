@@ -2,12 +2,13 @@ name: Python vulnerabilities
 
 on:
   push:
+    branches: [main]
   pull_request:
   merge_group:
     types: [checks_requested]
   workflow_dispatch:
   schedule:
-    - cron: '23 7 * * *'
+    - cron: '23 7 * * 1'
 
 permissions:
   contents: read
