@@ -1,7 +1,9 @@
 """Real scanner/git integration with synthetic canaries in disposable repositories."""
 
 import importlib.util
+import io
 import os
+import zipfile
 from pathlib import Path
 
 import pytest
@@ -184,5 +186,91 @@ def test_ci_rejects_missing_history(repository, scanner, history):
 def test_security_scripts_support_runner_python():
     import ast
 
-    for name in ("security_check.py", "install_security_tools.py"):
+    for name in ("security_check.py", "install_security_tools.py", "dependency_audit.py"):
         ast.parse((ROOT / "scripts" / name).read_text(), feature_version=(3, 12))
+
+
+def word_fixture():
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+        archive.writestr(
+            "[Content_Types].xml",
+            '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
+            '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.'
+            'relationships+xml"/><Override PartName="/word/document.xml" '
+            'ContentType="application/vnd.openxmlformats-officedocument.'
+            'wordprocessingml.document.main+xml"/></Types>',
+        )
+        archive.writestr(
+            "_rels/.rels",
+            '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+            '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/'
+            '2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>',
+        )
+        archive.writestr(
+            "word/document.xml",
+            '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>'
+            + "555566"
+            + "667777"
+            + "</w:t></w:r></w:p></w:body></w:document>",
+        )
+    return buffer.getvalue()
+
+
+@pytest.mark.parametrize("mode", ["working", "staged", "history"])
+@pytest.mark.parametrize(
+    "name,data",
+    [
+        ("guide.DOCX", None),
+        ("renamed.txt", None),
+        ("broken.zip", b"not even an archive"),
+        ("binary.dat", b"text\x00private-marker"),
+        ("legacy.txt", b"\xffprivate-marker"),
+    ],
+)
+def test_binary_policy_covers_worktree_index_and_deleted_history(
+    repository, scanner, mode, name, data
+):
+    path = repository / name
+    path.write_bytes(word_fixture() if data is None else data)
+    if mode != "working":
+        security.git(repository, "add", name)
+        if mode == "staged":
+            path.write_text("clean working copy")
+        else:
+            security.git(repository, "commit", "--quiet", "-m", "Synthetic binary")
+            security.git(repository, "rm", name)
+            security.git(repository, "commit", "--quiet", "-m", "Remove synthetic binary")
+    with pytest.raises(security.ScanFailure, match="Binary|Non-UTF-8") as error:
+        security.run(repository, scanner, staged=mode == "staged", history=mode == "history")
+    assert "private-marker" not in str(error.value)
+    assert "555566" + "667777" not in str(error.value)
+
+
+@pytest.mark.parametrize(
+    "name", ["Private/notes.md", "REPORTS/notes.md", ".AWS/config", ".Env", "Credentials"]
+)
+@pytest.mark.parametrize("mode", ["working", "staged", "history"])
+def test_mixed_case_private_paths_are_blocked(repository, scanner, name, mode):
+    path = repository / name
+    path.parent.mkdir(exist_ok=True)
+    path.write_text("Synthetic notes without a secret signature")
+    if mode != "working":
+        security.git(repository, "add", "-f", name)
+    if mode == "history":
+        security.git(repository, "commit", "--quiet", "-m", "Private fixture")
+        security.git(repository, "rm", name)
+        security.git(repository, "commit", "--quiet", "-m", "Remove private fixture")
+    with pytest.raises(security.ScanFailure, match="Private artifact"):
+        security.run(repository, scanner, staged=mode == "staged", history=mode == "history")
+
+
+def test_git_binary_attribute_cannot_hide_historical_text_secret(repository, scanner):
+    (repository / ".gitattributes").write_text("notes.txt -diff\n")
+    path = repository / "notes.txt"
+    path.write_text("555566" + "667777")
+    security.git(repository, "add", ".")
+    security.git(repository, "commit", "--quiet", "-m", "Synthetic attributed text")
+    security.git(repository, "rm", "notes.txt")
+    security.git(repository, "commit", "--quiet", "-m", "Remove fixture")
+    assert security.run(repository, scanner, require_history=True) == 1

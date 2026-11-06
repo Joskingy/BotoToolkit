@@ -686,3 +686,110 @@ tests, while pushes/worktrees were exercised against disposable local remotes.
 Custom hooks require manual reconciliation; fork/Enterprise PR workflows are
 outside this first helper. Existing reviewer and Dependabot administrator
 choices from the prior report remain unchanged. No live AWS call was made.
+
+## Synchronize the promotion back into dev
+
+Created an isolated branch from origin/dev and merged origin/main to preserve
+the promotion merge ancestry. The merge had no content conflicts. The original
+main worktree's four uncommitted files were retained and a local patch was saved;
+a comparison confirmed the patch remained unchanged.
+
+In the synchronization checkout, ran .\dev.ps1 setup and .\dev.ps1 check
+with the pinned toolchain and cached dependencies. The checksum-verified scanner
+and history/canary checks passed; uv lock --check passed; uv run --locked pytest
+-q --tb=short passed 223 tests in 107.59 seconds without skips; uv run --locked
+ruff check . and uv run --locked ruff format --check . passed (45 files); and
+uv run --locked python scripts/check_distribution.py and git diff --check passed.
+No AWS operations were performed. GitHub checks must pass on the synchronization
+PR before merging.
+
+
+## Security remediation and dependency monitoring dated 6 November 2026
+
+### Implemented changes
+
+Prepared branch `codex/security-hardening` from current origin/dev `5a0fc1e` in
+an isolated worktree. The original worktree and its pending audit/guide changes
+were not staged, reset, or moved. Six saved files stayed byte-for-byte identical;
+the original implementation report retained its complete saved prefix plus an
+independent diagram-documentation addition. Those concurrent changes were also
+left untouched. A copy of the audit is included here with a remediation status.
+
+- A1: publication now permits UTF-8 text only. Known binary/archive suffixes,
+  non-UTF-8 bytes, and binary control characters are rejected in the working
+  checkout, staged index, and reachable historical blobs, including deleted files.
+  Renamed or malformed archives cannot bypass content checks. Word documents
+  remain private local artifacts; no binary content is silently skipped.
+- Git history scans force text diffs so Git attributes cannot hide a historical
+  text secret. Blob checks deduplicate content while still examining every path.
+- A2: private-path checks and package archive path inspection are case-insensitive;
+  credential filenames are also blocked in package archives.
+- A3: added a standard-library OSV auditor for every public PyPI package/version
+  in uv.lock, including development and platform alternatives. No packages are
+  installed or executed by the audit. Private/unsupported sources stop before
+  network access. Requests contain only public package names and versions.
+  Findings exit 1; missing, malformed, oversized, paginated, redirected, or
+  unavailable results exit 2. Only a complete clean result exits 0.
+- Added the `python-vulnerabilities` check on push/PR/merge queue/manual events
+  and daily at 07:23 UTC on the default branch. Added weekly native uv Dependabot
+  update PRs targeting dev; quarterly Actions updates remain unchanged.
+- A4: GitHub CLI pipes are drained concurrently with byte limits of 2 MiB stdout
+  and 64 KiB stderr. Overflow kills the child; a shared process/pipe deadline
+  prevents waiting indefinitely. Errors remain fixed safe codes.
+- Added regression coverage, dependency-audit test ownership, current security/CI
+  documentation, activation instructions, audit remediation status, and roadmap
+  status. No existing tests were removed or suppressed. Runtime dependencies and
+  uv.lock were not changed. No AWS request or infrastructure change was made.
+
+### Verification sequence
+
+Used pinned uv 0.13.4/Python 3.15.0, the existing offline package cache, a separate
+worktree virtual environment, and writable `.uv/check-temp` temporary storage.
+Copied the already installed pinned Gitleaks executable into this worktree and
+verified its version and detection canaries through the actual scanner.
+
+1. Targeted regressions:
+   `uv run pytest -q --tb=short tests/test_security_checks.py
+   tests/test_distribution.py tests/test_dependency_audit.py
+   tests/test_github_capture.py tests/test_stale_github.py`:
+   **122 passed** in 75.67 seconds. Tests cover working/index/deleted-history
+   binary rejection, mixed-case paths, Git binary attributes, advisory failures,
+   redirects/limits, and real local child-process overflow/timeout behavior.
+2. Full suite: `uv run pytest -q --tb=short`: **288 passed**, no skips,
+   128.16 seconds. Ran outside the Windows restriction already known to block
+   Git's MSYS shell for disposable local Git tests. AWS/GitHub requests were
+   mocked; child-process tests only executed synthetic local Python commands.
+3. `uv run ruff check .`: passed. `uv run ruff format --check .`: passed,
+   50 files checked. Initial long fixture strings were reformatted; no suppressions
+   were added. `uv lock --check --offline`: passed, 21 packages resolved.
+4. `uv run --locked python scripts/check_distribution.py`: passed both archive
+   builds, private-path checks, clean installs, isolated imports, and both entry
+   points. uv reported harmless hardlink-to-copy fallback warnings.
+5. `actionlint -shellcheck='' -pyflakes=''` on all three workflow files: passed
+   using installed actionlint 1.7.12. Embedded shell/Python analysis was disabled;
+   Python scripts passed Ruff and a Python 3.12 syntax regression separately.
+6. `uv run python scripts/dependency_audit.py`: live OSV lookup passed for
+   **20 locked public PyPI versions, zero matches**. The approved network request
+   sent no source contents, private identifiers, or credentials.
+7. `uv run --locked python scripts/security_check.py --history --require-history`:
+   passed, including actual canaries and binary/history policy. This check is
+   repeated on the final publishable files before the push; commit/push hooks
+   also enforce it. `git diff --check`: passed.
+8. Saved-file integrity comparison confirmed preservation of original content and
+   independent concurrent documentation additions in the original worktree.
+
+### Review and activation
+
+This change is prepared for a PR into dev, not a merge. Add the exact
+`python-vulnerabilities` check to main/dev required checks after its hosted run
+is available. Promote to main through review to activate daily scheduling and
+Dependabot's new default-branch configuration. Verify dependency graph, Dependabot
+alerts/security updates, failure notifications, and independent owner review in
+GitHub. This PR does not silently change repository settings or IAM permissions.
+
+OSV results do not cover undisclosed flaws, malicious packages, Python/uv/Gitleaks,
+Actions, OS components, or build requirements absent from uv.lock. Paginated OSV
+responses fail closed and require investigation. Text-only publication deliberately
+blocks binary assets rather than providing an archive-scanning bypass. Existing
+local deployment-claim and IAM operating limits remain documented. A5 worktree
+cleanup, doctor, and optional features remain separate work.

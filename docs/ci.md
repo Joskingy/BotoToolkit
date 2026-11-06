@@ -13,6 +13,7 @@ queue request, and manual dispatch. Documentation-only changes are included.
 | tests (ubuntu-24.04) | ubuntu-24.04 | Offline AWS/GitHub regressions and real scanner integration |
 | tests (windows-latest) | windows-latest | The same regression suite on Windows |
 | package | ubuntu-24.04 | Wheel/source builds, archive inspection, clean installations, both console commands |
+| python-vulnerabilities | ubuntu-24.04 | All public PyPI versions in uv.lock checked against OSV; findings or incomplete audits fail |
 
 Application CI pins uv 0.13.4 and stable Python 3.15.0. The project retains its
 Python >=3.15 requirement and existing lockfile. CI installs with `uv sync
@@ -50,11 +51,11 @@ files alone. Remote execution and enforcement have not been verified locally.
 
 1. Push the reviewed files to OWNER/REPOSITORY. Enable GitHub Actions and ensure
    organization policies allow the pinned checkout/setup-uv actions and hosted
-   Linux/Windows runners. Let all five checks run successfully on a pull request.
+   Linux/Windows runners. Let all six checks run successfully on a pull request.
 2. Create an active branch ruleset for main and any shared integration branch.
-   Require pull requests and the five exact check names from the table, selecting
+   Require pull requests and the six exact check names from the table, selecting
    GitHub Actions as their expected source where supported. Require current
-   branches or use the merge queue. Both workflows include `merge_group`.
+   branches or use the merge queue. All workflows include `merge_group`.
 3. Require code-owner review and dismiss stale approvals after new commits.
    `.github/CODEOWNERS` assigns CI, scanner policy, hooks, tooling, scanner/package
    tests, dependency metadata, and Python selection to `@Joskingy`, as requested.
@@ -73,6 +74,8 @@ files alone. Remote execution and enforcement have not been verified locally.
    where available. A push-triggered workflow runs after upload; required checks
    prevent merging, not the initial upload or PR creation.
 7. Enable Dependabot version updates and review its quarterly GitHub Actions PRs.
+   Python `uv` updates run weekly and target dev. Adding this entry does not enable
+   GitHub dependency alerts/security updates; verify those settings separately.
    Keep full SHA pins. Embedded uv/Python/Gitleaks version pins require deliberate
    maintenance; Gitleaks changes also require verified Windows/Linux checksums
    and review of the scanner/test version references. No automatic merges are set.
@@ -98,6 +101,7 @@ uv run --locked pytest -q --tb=short
 uv run --locked ruff check .
 uv run --locked ruff format --check .
 uv run --locked python scripts/check_distribution.py
+uv run --locked python scripts/dependency_audit.py
 ```
 
 The package helper's PEP 517 build requires a uv version supporting
