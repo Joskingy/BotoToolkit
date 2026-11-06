@@ -15,6 +15,37 @@ from pathlib import Path, PurePosixPath
 ROOT = Path(__file__).resolve().parents[1]
 VERSION = "8.24.3"
 MAX_FILE_BYTES = 10 * 1024 * 1024
+BINARY_SUFFIXES = {
+    ".doc",
+    ".docx",
+    ".docm",
+    ".dotx",
+    ".xls",
+    ".xlsx",
+    ".xlsm",
+    ".ppt",
+    ".pptx",
+    ".pptm",
+    ".pdf",
+    ".zip",
+    ".gz",
+    ".bz2",
+    ".xz",
+    ".tar",
+    ".7z",
+    ".rar",
+    ".whl",
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".gif",
+    ".webp",
+    ".ico",
+    ".exe",
+    ".dll",
+    ".so",
+    ".pyc",
+}
 
 
 class ScanFailure(Exception):
@@ -36,7 +67,7 @@ def git(root, *args):
 
 
 def forbidden_path(name):
-    path = PurePosixPath(name)
+    path = PurePosixPath(name.casefold())
     return (
         any(part in {".aws", ".amplify-ops", "reports", "private", ".local"} for part in path.parts)
         or path.name in {"credentials", ".env"}
@@ -56,6 +87,20 @@ def repository_path(raw_name):
 def check_private_path(name):
     if forbidden_path(name):
         raise ScanFailure(f"Private artifact cannot be published: {json.dumps(name)}")
+    if PurePosixPath(name.casefold()).suffix in BINARY_SUFFIXES:
+        raise ScanFailure(f"Binary/archive artifact cannot be published: {json.dumps(name)}")
+
+
+def check_text(data):
+    """This source repository publishes UTF-8 text only; never silently skip binaries."""
+    try:
+        text = data.decode("utf-8")
+    except UnicodeDecodeError:
+        raise ScanFailure(
+            "Non-UTF-8 content cannot be published; use reviewed text sources."
+        ) from None
+    if any(ord(char) < 32 and char not in "\t\r\n" for char in text) or "\x7f" in text:
+        raise ScanFailure("Binary/control content cannot be published; use reviewed text sources.")
 
 
 def snapshot(root, target, staged=False):
@@ -97,6 +142,9 @@ def snapshot(root, target, staged=False):
         if size > MAX_FILE_BYTES:
             raise ScanFailure("Oversized file needs a separate review; scan blocked.")
         data = git(root, "cat-file", "blob", oid) if oid else source.read_bytes()
+        if len(data) > MAX_FILE_BYTES:
+            raise ScanFailure("Oversized file needs a separate review; scan blocked.")
+        check_text(data)
         output = target / name
         output.parent.mkdir(parents=True, exist_ok=True)
         output.write_bytes(data)
@@ -105,6 +153,7 @@ def snapshot(root, target, staged=False):
 def history_artifacts(root):
     """Apply publication policy to every reachable tree, including deleted artifacts."""
     trees = set(git(root, "log", "--format=%T", "--all", "HEAD").splitlines())
+    checked_blobs = set()
     for raw_tree in trees:
         tree = raw_tree.decode("ascii")
         if not re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", tree):
@@ -112,13 +161,16 @@ def history_artifacts(root):
         entries = git(root, "ls-tree", "-r", "-z", "--full-tree", "-l", tree).split(b"\0")
         for entry in filter(None, entries):
             metadata, raw_name = entry.split(b"\t", 1)
-            mode, kind, _oid, size = metadata.decode("ascii").split()
+            mode, kind, oid, size = metadata.decode("ascii").split()
             # Check each path, even if another path already used the same blob.
             check_private_path(repository_path(raw_name))
             if mode not in {"100644", "100755"} or kind != "blob":
                 raise ScanFailure("History contains symlinks/submodules; publication blocked.")
             if int(size) > MAX_FILE_BYTES:
                 raise ScanFailure("History contains an oversized file; publication blocked.")
+            if oid not in checked_blobs:
+                check_text(git(root, "cat-file", "blob", oid))
+                checked_blobs.add(oid)
 
 
 def scan(executable, cwd, arguments, config, template):
@@ -219,7 +271,7 @@ def run(root, executable, *, staged=False, history=False, require_history=False)
                 raise ScanFailure("Shallow checkout: fetch complete history before scanning.")
             history_artifacts(root)
             findings += scan(
-                executable, root, ["git", "--log-opts=--all HEAD", "."], config, template
+                executable, root, ["git", "--log-opts=--all HEAD --text", "."], config, template
             )
     for name, line, rule in findings:
         print(f"{json.dumps(name)}:{line}: {rule}")

@@ -1,5 +1,15 @@
 # amplify-ops roadmap
 
+## Audit security remediation prepared 6 November 2026
+
+Implemented text-only publication enforcement across working files, index, and
+reachable history; case-insensitive private paths; bounded GitHub CLI capture;
+and Python dependency advisory monitoring with weekly uv update PRs. Core
+milestones 1–7 remain complete. See docs/project-audit.md for A1–A4 remediation
+and docs/dependency-monitoring.md for activation and required-check configuration.
+Original worktree edits are preserved. Review/merge and GitHub configuration remain
+pending; IAM changes, doctor, cleanup, and expanded AWS writes are not included.
+
 Core milestones 1–7 are implemented. Inventory/report commands and deploy-plan
 are read-only; deploy is an explicit, separately permissioned RETRY write path.
 See IMPLEMENTATION_REPORT.md for all changes and step-by-step verification,

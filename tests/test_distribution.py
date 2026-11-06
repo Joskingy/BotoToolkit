@@ -45,7 +45,19 @@ def test_missing_compatibility_package_blocks_distribution(tmp_path, kind):
 
 
 @pytest.mark.parametrize("kind", ["whl", "tar.gz"])
-@pytest.mark.parametrize("private_path", [".aws/credentials", "src/.env", "../outside.py"])
+@pytest.mark.parametrize(
+    "private_path",
+    [
+        ".aws/credentials",
+        "src/.env",
+        "../outside.py",
+        ".AWS/config",
+        "Private/notes.md",
+        "REPORTS/notes.md",
+        "src/.ENV",
+        "src/Credentials",
+    ],
+)
 def test_private_or_escaping_paths_block_distribution(tmp_path, kind, private_path):
     target = archive(
         tmp_path,
