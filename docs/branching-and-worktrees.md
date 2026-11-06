@@ -32,7 +32,7 @@ or replace origin just to introduce this branching model.
 | tests/ | Keep the offline suite together; run it independently in each worktree. |
 | pyproject.toml, uv.lock, .python-version | Version these together; create a separate environment per checkout. |
 | .github/workflows/ | Both proposed workflows already run on all branches and PRs; no trigger change is needed. |
-| .github/dependabot.yml | Plan to add target-branch: dev after dev exists; keep the configuration on main too. |
+| Dependency maintenance | Manual feature PRs into dev; retain weekly OSV monitoring. |
 | .github/CODEOWNERS | Keep CI/security ownership on both main and dev; resolve the single-owner review limitation. |
 | .githooks/, .gitleaks.toml, scripts/ | Retain the scanners and hooks; install the scanner in each checkout. |
 | docs/, CONTRIBUTING.md | Keep this guide alongside CI/security instructions. |
@@ -256,17 +256,10 @@ Enforce the target convention in review initially. An optional later dedicated
 check can validate PR source/target pairs, including same-repository identity,
 hotfix and synchronization exceptions. Do not grant it AWS permissions.
 
-The bootstrap changes set the following option on the existing GitHub Actions
-entry in .github/dependabot.yml. It takes effect when promoted to main:
-
-```yaml
-    target-branch: dev
-```
-
-This routes version-update PRs to dev. GitHub reads Dependabot configuration
-from the default branch, so keep it on main. Security updates have separate
-default-branch behavior; target-branch is not a way to reroute those. No Python
-Dependabot entry is currently configured. See [Dependabot target-branch](https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-options-reference#target-branch).
+Dependency updates use manual feature PRs into dev. Dependabot configuration is
+removed by the CI cleanup and stops generating version-update PRs after that
+removal reaches main. The independent OSV check remains required on PRs and runs
+weekly on the default branch. See [dependency monitoring](dependency-monitoring.md).
 
 ## 7. Develop one feature per worktree
 
@@ -359,7 +352,8 @@ merges while the promotion is being reviewed.
 
    Tag the tested main commit, never an unmerged feature. Do not move or overwrite
    an existing release tag. A tag is not package publication or AWS deployment;
-   the current workflows only validate it. Create a GitHub Release manually if
+   tag pushes do not trigger CI. Validate the main commit before tagging, or use
+   manual workflow dispatch. Create a GitHub Release manually if
    release notes are desired, without uploading private reports.
 
 5. Synchronize main back through a temporary branch based on the latest dev.
@@ -458,7 +452,7 @@ Keep the main and dev worktrees permanently.
 - A harmless feature has completed feature -> dev -> main -> dev on GitHub.
 - Separate environments, hooks, scanner checks, and package tests work in a
   linked checkout; no private output was copied into source history.
-- Dependabot's version updates target dev after its configuration reaches main.
+- Manual dependency updates target dev; weekly OSV monitoring is active on main.
 - A sample merged feature worktree can be removed without losing local material.
 
 The directory structure needs no application refactor for this model. Optional

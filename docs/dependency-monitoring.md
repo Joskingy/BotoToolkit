@@ -2,9 +2,9 @@
 
 `python-vulnerabilities` checks all registry package versions in `uv.lock`, including
 development dependencies and platform alternatives, against the public OSV API.
-It runs on every push, pull request, merge queue request, manual dispatch, and
-daily at 07:23 UTC on the default branch. Scheduled runs begin after the workflow
-reaches main; dev is checked when it receives pushes and PRs. GitHub may delay
+It runs on every pull request, pushes to main, merge queue requests, manual
+dispatch, and weekly on Monday at 07:23 UTC on the default branch. Schedule changes
+take effect after promotion to main; dev is checked through PRs. GitHub may delay
 scheduled jobs. No AWS credentials, new package dependency, or package installation
 is needed by the auditor.
 
@@ -30,22 +30,24 @@ scan is not a guarantee against malicious packages or undisclosed vulnerabilitie
 Python, uv, Gitleaks, Actions, OS components, and build requirements not recorded in
 uv.lock are outside this check.
 
-Dependabot's native `uv` ecosystem opens weekly version-update PRs into dev.
-Existing quarterly GitHub Actions updates remain unchanged. Review changelogs,
-rerun tests and advisory checks, and merge through the normal dev/main process.
-No update is automatically merged. uv and Gitleaks tool pins still require separate
-maintenance. Use GitHub notification settings to receive failed scheduled-run alerts.
+Dependabot version updates are removed; dependency updates are manual. Monthly or
+before a release, review Python packages and action/tool pins in a feature branch,
+inspect changelogs, and run tests, package checks, and the advisory checker before
+opening a PR into dev. Keep changes small enough to review and promote through
+the normal dev/main process. No update is automatically merged. uv and Gitleaks
+tool pins still require separate maintenance. The OSV workflow does not open PRs.
+Use GitHub notification settings to receive failed scheduled-run alerts.
 
 ## GitHub configuration after review
 
 1. Require the exact `python-vulnerabilities` check for main and dev alongside the
    existing five checks, once its successful PR run is visible.
-2. Verify dependency graph, Dependabot alerts, and security updates are enabled
-   where supported. The repository file alone does not enable these controls.
-3. Promote the workflow to main to activate the daily schedule and Dependabot's
-   default-branch configuration. Confirm a scheduled or manual run succeeds.
+2. Dependabot alerts and automatic security updates remain disabled by the current
+   repository policy. OSV monitoring is independent of those settings.
+3. Promote the cleanup to main to activate the weekly schedule and remove the
+   default-branch Dependabot configuration. Until then the previous automation
+   can still run. Confirm a scheduled or manual OSV run succeeds.
 4. Require independent review for workflow, auditor, lockfile, and policy changes;
    a PR must not weaken its own checks. Existing CODEOWNERS assignment is retained.
 
-References: [OSV batch API](https://google.github.io/osv.dev/post-v1-querybatch/),
-[uv and Dependabot](https://docs.astral.sh/uv/guides/integration/dependabot/).
+Reference: [OSV batch API](https://google.github.io/osv.dev/post-v1-querybatch/).
