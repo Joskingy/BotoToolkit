@@ -5,6 +5,7 @@
 /scripts/ @Joskingy
 /tests/test_security* @Joskingy
 /tests/test_distribution.py @Joskingy
+/tests/test_dependency_audit.py @Joskingy
 /tests/conftest.py @Joskingy
 /pyproject.toml @Joskingy
 /uv.lock @Joskingy

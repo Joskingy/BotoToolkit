@@ -33,12 +33,13 @@ def inspect_archive(path: Path) -> None:
         with tarfile.open(path, "r:gz") as archive:
             names = archive.getnames()
     for name in names:
-        entry = PurePosixPath(name)
+        entry = PurePosixPath(name.casefold())
         if (
             entry.is_absolute()
             or ".." in entry.parts
             or "\\" in name
             or PRIVATE_PARTS.intersection(entry.parts)
+            or entry.name == "credentials"
             or entry.name.startswith(".env")
             or entry.suffix.lower() in {".pem", ".key", ".log", ".code-workspace"}
         ):

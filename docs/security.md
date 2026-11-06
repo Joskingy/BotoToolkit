@@ -33,8 +33,9 @@ locally with `gh auth status --hostname github.com`; do not paste its output.
 | GitHubTimeout / GitHubUnavailable | Check connectivity and gh installation, then rerun. |
 | GitHubInvalidResponse / GitHubPageLimit / GitHubResponseLimit | Treat evidence as incomplete; review scope or response behavior before relying on it. |
 
-The existing limits remain 20 pages per endpoint, 100 rows per page, 20 seconds
-per gh process, and a 2 MiB accepted stdout limit checked after capture. These
+The limits are 20 pages per endpoint, 100 rows per page, and a 20-second shared
+process/pipe deadline. Stdout is bounded to 2 MiB and stderr to 64 KiB while being
+read concurrently; overflow stops the process with a fixed error. These
 are sequential observations, not an atomic repository snapshot. AWS execution
 still requires explicit local profile `brewmaster` and the independent STS gate.
 No GitHub or AWS login is required by the publication scanner.
@@ -93,6 +94,21 @@ submodules, conflicts, and files over 10 MiB require a separate review and fail
 the snapshot scan. Findings print escaped filenames, line numbers, and rule IDs
 only. Matching values, source lines, authors, messages, and scanner raw output
 are withheld. No scan artifacts or PR comments are uploaded.
+
+Publication is now restricted to UTF-8 text. Word/Office files, PDFs, archives,
+images, executables, non-UTF-8 bytes, and binary control characters are rejected,
+not skipped. Renaming a ZIP to `.txt` does not make it publishable. This policy
+applies to working files, the complete staged index, and every reachable historical
+blob, including deleted files. Git history is read with text diffs so `.gitattributes`
+cannot suppress text findings. Private folder/file checks are case-insensitive,
+including `Private`, `REPORTS`, `.AWS`, `.ENV`, and `Credentials`; distribution
+path checks apply the same case normalization.
+
+Keep generated Word guides and other binaries in ignored `reports/` and maintain
+reviewable Markdown sources in `docs/`. There is no bypass switch or binary
+exception list. Adding publishable binary assets requires a separate reviewed
+policy and bounded content-inspection implementation. Content checks do not
+make arbitrary encoded text safe or detect every private fact.
 
 Exit codes: 0 passed, 1 findings, 2 incomplete/tool failure. All nonzero codes
 block the hooks and fail CI. A missing scanner never silently passes. Local

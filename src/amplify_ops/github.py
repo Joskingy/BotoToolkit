@@ -5,12 +5,70 @@ import os
 import re
 import subprocess
 from dataclasses import dataclass
+from threading import Event, Thread
+from time import monotonic
 
-run_command = subprocess.run
+MAX_STDOUT = 2 * 1024 * 1024
+MAX_STDERR = 64 * 1024
 
 
 class GitHubReadFailure(Exception):
     """A fixed error code only; do not expose gh stderr or credential diagnostics."""
+
+
+def run_command(
+    args: list[str], *, timeout: float, env: dict[str, str]
+) -> subprocess.CompletedProcess:
+    """Drain both pipes concurrently with fixed byte budgets and a shared deadline."""
+    buffers = [bytearray(), bytearray()]
+    exceeded, failed = Event(), Event()
+
+    def read_pipe(pipe, buffer: bytearray, limit: int) -> None:
+        try:
+            with pipe:
+                while chunk := pipe.read(min(65536, limit + 1 - len(buffer))):
+                    if len(buffer) + len(chunk) > limit:
+                        exceeded.set()
+                        process.kill()
+                        return
+                    buffer.extend(chunk)
+        except OSError:
+            failed.set()
+
+    deadline = monotonic() + timeout
+    process = subprocess.Popen(
+        args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env, bufsize=0
+    )
+    readers = [
+        Thread(target=read_pipe, args=(process.stdout, buffers[0], MAX_STDOUT), daemon=True),
+        Thread(target=read_pipe, args=(process.stderr, buffers[1], MAX_STDERR), daemon=True),
+    ]
+    try:
+        for reader in readers:
+            reader.start()
+        process.wait(timeout=max(0, deadline - monotonic()))
+        for reader in readers:
+            reader.join(timeout=max(0, deadline - monotonic()))
+        if exceeded.is_set():
+            raise GitHubReadFailure("GitHubResponseLimit")
+        if any(reader.is_alive() for reader in readers):
+            raise subprocess.TimeoutExpired(args, timeout)
+        if failed.is_set():
+            raise GitHubReadFailure("GitHubUnavailable")
+        return subprocess.CompletedProcess(
+            args,
+            process.returncode,
+            buffers[0].decode("utf-8", errors="replace"),
+            buffers[1].decode("utf-8", errors="replace"),
+        )
+    finally:
+        if process.poll() is None:
+            process.kill()
+        process.wait()
+        # Normal gh processes close both pipes on exit. Never wait indefinitely
+        # for a descendant that inherited a pipe; daemon readers remain bounded.
+        for reader in readers:
+            reader.join(timeout=0.1)
 
 
 @dataclass(frozen=True)
@@ -63,11 +121,7 @@ def read_pages(repository: str, resource: str, projection: str) -> list[dict]:
                     "--jq",
                     projection,
                 ],
-                capture_output=True,
                 timeout=20,
-                encoding="utf-8",
-                errors="replace",
-                check=False,
                 env=request_environment(),
             )
         except FileNotFoundError:
@@ -78,7 +132,7 @@ def read_pages(repository: str, resource: str, projection: str) -> list[dict]:
             raise GitHubReadFailure("GitHubUnavailable") from None
         if result.returncode:
             raise GitHubReadFailure(failure_code(getattr(result, "stderr", "")))
-        if len(result.stdout) > 2 * 1024 * 1024:
+        if len(result.stdout.encode("utf-8")) > MAX_STDOUT:
             raise GitHubReadFailure("GitHubResponseLimit")
         try:
             items = json.loads(result.stdout)
