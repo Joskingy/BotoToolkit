@@ -58,6 +58,58 @@ Hosted PR validation is reported separately after publishing. No new settings
 are required for the existing six required checks; activation requires merging
 through dev and promoting the workflow/configuration changes into main.
 
+## Completed-worktree retirement and PR resolution — 6 November 2026
+
+Retired the four completed checkouts for codex/dependabot-quarterly,
+codex/developer-workflow, codex/sync-main-promotion, and codex/security-hardening.
+Each checkout was clean and its HEAD was already an ancestor of dev. Resolved
+the four absolute removal paths against an explicit allowlist before using
+Git's normal worktree removal; no forced removal or branch deletion was needed.
+
+Preserved every file, including ignored environments, caches, test artifacts,
+local scripts, and backups, in four local ZIP archives under ignored
+`.uv/worktree-retirement-2026-11-06/`. Verified all 32,479 archived files against
+SHA-256 hashes and checked the original files again before removal. Saved
+per-file manifests, archive hashes, and retired branch revisions. Branches and
+committed history remain available. Recovery material is not published.
+
+The five requested worktrees (main, dev, doctor, and the PR #16/#17 checkouts)
+retain their original HEADs, pending-file hashes, and Git status. Existing local
+reports, deployment state, recovery stashes, and private files were not moved.
+The only main-directory additions are ignored recovery/verification artifacts.
+
+Merged PR #16 with a merge commit after verifying its required checks. Updated
+PR #17 by merging the new origin/dev in a temporary detached checkout, preserving
+the existing PR worktree. The merge had no content conflicts and changed only
+the implementation report and roadmap. PR #17 will be merged only after its
+new revision passes all six required checks. No live AWS operations ran.
+
+Verification used uv 0.13.4, Python 3.15.0, the offline cache, a temporary
+worktree environment, and writable worktree-local TEMP/TMP directories. Cleared
+AWS_PROFILE and AWS_DEFAULT_PROFILE only in the mocked test process.
+
+1. Full ZIP round-trip verification: all 32,479 files and archive hashes passed;
+   four archives total 171.6 MiB. Rechecked source hashes before removal.
+2. `git merge-base --is-ancestor HEAD origin/dev` and clean-status checks passed
+   for all four retired worktrees. Normal `git worktree remove` succeeded.
+3. Compared original HEAD/status/pending-file hashes for the five retained
+   worktrees after cleanup: unchanged. Recovery branches/stashes remain.
+4. `uv lock --check`: passed, 21 packages resolved.
+5. `uv run --locked pytest -q --tb=short`: **288 passed**, no skips, 138.05s.
+6. `uv run --locked ruff check .`: passed.
+7. `uv run --locked ruff format --check .`: passed, 50 files formatted.
+8. `uv run --locked python scripts/check_distribution.py`: passed wheel/source
+   builds, archive inspection, clean installs, and command smoke checks.
+9. `uv run --locked python scripts/security_check.py --history`: passed files,
+   reachable history, and canaries; repeated after this final report update.
+10. `actionlint` 1.7.12 against all three workflows and `git diff --check`: passed.
+
+The local dev/doctor checkouts intentionally remain at their original revisions
+per the instruction to leave them untouched; fetching updates remote-tracking
+references only. Hosted checks and the authorized PR #17 merge outcome are
+reported separately, with the final local preservation check in the recovery
+folder's RESULT.md. This operation does not promote the cleanup from dev to main.
+
 ## Outcome and command coverage
 
 | Milestone | Commands | Implemented behavior |

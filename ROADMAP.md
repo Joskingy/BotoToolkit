@@ -1,5 +1,13 @@
 # amplify-ops roadmap
 
+## Completed worktree cleanup — 6 November 2026
+
+Four merged worktrees were retired after full local backup and hash verification.
+The five requested main/dev/doctor/PR worktrees remain untouched. PR #16 is merged;
+PR #17 is updated against the new dev and will merge after fresh required checks.
+Core milestones 1–7 remain complete. Promotion to main is separate from this
+cleanup; local dev/doctor updates are deferred to preserve the requested state.
+
 ## CI noise reduction prepared 6 November 2026
 
 Removed Dependabot version-update configuration. All six required PR checks,
