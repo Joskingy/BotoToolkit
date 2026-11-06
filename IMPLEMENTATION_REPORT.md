@@ -793,3 +793,57 @@ responses fail closed and require investigation. Text-only publication deliberat
 blocks binary assets rather than providing an archive-scanning bypass. Existing
 local deployment-claim and IAM operating limits remain documented. A5 worktree
 cleanup, doctor, and optional features remain separate work.
+
+## Promotion PR #10 and synchronization preparation — 6 November 2026
+
+### Changes
+
+Confirmed all six required checks passed and merged PR #10 into main using a
+merge commit, with the expected source revision enforced. The existing main/dev
+rule requires quality, both platform test jobs, package, sensitive-information,
+and python-vulnerabilities. Daily vulnerability monitoring is now present on
+the default branch. No rule protection was weakened.
+
+Created codex/sync-main-pr10 from current origin/dev in a separate worktree and
+fast-forwarded it to origin/main. Both branches had identical file trees after
+promotion; the synchronization carries the promotion ancestry back into dev.
+Only this verification record and roadmap status are added by the sync branch.
+Its PR targets dev and is prepared for review, not merged.
+
+Updated the main worktree to origin/main after copying, checksumming, and stashing
+all pending tracked/untracked files. The recovery stash is retained. Resolved the
+report's additive conflict by retaining both sections. The formerly untracked
+audit document is now tracked upstream with the complete original audit plus
+the remediation note. Original added text remains present and other untracked
+files retain their original bytes. No private ignored files were removed.
+
+Dev matches origin/dev and remains clean. Feature/doctor already includes current
+dev and retains its fourteen pending files. Main retains five pending files;
+its audit document is absorbed into upstream. Historical merged worktrees are
+retained unchanged. Main and dev will finish ancestry synchronization only after
+the new PR is approved and merged; no protected branch was bypassed or reset.
+
+### Verification
+
+Used pinned uv 0.13.4 and Python 3.15.0, the local offline package cache, a fresh
+worktree environment, and worktree-local TEMP/TMP folders. Cleared AWS_PROFILE
+and AWS_DEFAULT_PROFILE only in the test process. Ran in this order:
+
+1. `uv lock --check`: passed, 21 packages resolved.
+2. `uv run --locked pytest -q --tb=short`: **288 passed**, no skips, 129.09s.
+3. `uv run --locked ruff check .`: passed.
+4. `uv run --locked ruff format --check .`: passed, 50 files already formatted.
+5. `uv run --locked python scripts/check_distribution.py`: passed wheel/source
+   builds, private-path inspection, isolated installs, and entry-point checks.
+6. `uv run --locked python scripts/security_check.py --history`: passed working
+   files, reachable history, and detection canaries. Repeated after final report
+   edits before publishing. The restored main worktree passed the same scan.
+7. `git diff --check`: passed. Confirmed no unresolved main conflicts and checked
+   original additions against checksummed recovery copies. Untracked audit text
+   is retained upstream; the other untracked files match their original bytes.
+8. GitHub confirmed PR #10 is merged with a two-parent merge commit. Verified
+   the synchronization branch includes origin/main and origin/dev. Its PR will
+   remain open for review, with hosted checks reported separately.
+
+No live AWS requests or deployments were performed. Pending application feature
+work and local documentation are excluded from the synchronization PR.

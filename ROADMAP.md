@@ -150,7 +150,7 @@ The pending audit, CI, skill, and guide changes are preserved in a bootstrap
 commit. The original checkout is on main; sibling dev and bootstrap worktrees
 have separate Python environments and checksum-verified scanners. Dependabot
 version updates are routed to dev in the bootstrap branch. Active GitHub rules
-require pull requests and all five checks on main and dev, block force pushes
+require pull requests and all six checks on main and dev, block force pushes
 and deletion, and permit merge commits only. Independent approval remains
 optional until another trusted reviewer is available. Promotion uses those
 protected pull requests; see IMPLEMENTATION_REPORT.md and GitHub PR history.
@@ -166,3 +166,12 @@ tests use disposable Git repositories and mocked GitHub calls. Review, commits,
 merges, tags, and cleanup remain explicit. Merge the helper into dev before
 using start for new features; see docs/developer-helper.md and the latest
 verification record in IMPLEMENTATION_REPORT.md.
+
+## Security release and branch synchronization — 6 November 2026
+
+PR #10 promoted the security fixes and dependency monitoring into main with a
+merge commit after all six required checks passed. The python-vulnerabilities
+check is required on main and dev. Core milestones 1–7 remain complete.
+The follow-up synchronization branch includes the promotion commit and is
+prepared for a PR into dev. Pending main/doctor work and historical worktrees
+remain preserved; synchronization merge approval is still outstanding.
