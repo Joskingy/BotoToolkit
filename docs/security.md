@@ -120,8 +120,8 @@ are not authentication credentials.
 
 ## GitHub workflow and enforcement after repository creation
 
-`.github/workflows/sensitive-information.yml` runs on push, pull_request,
-merge_group, and manual dispatch. It checks out full history, installs the
+`.github/workflows/sensitive-information.yml` runs on pushes to main, all pull
+requests, merge_group, and manual dispatch. It checks out full history, installs the
 checksum-verified scanner, executes detection canaries, and scans files/history.
 The workflow uses a commit-pinned checkout action, `contents: read`, no persisted
 checkout credentials, no application secrets, no AWS credentials, and no

@@ -5,6 +5,59 @@ Generated AWS timestamps are UTC and therefore show October 17 for later checks.
 This public report omits the local workspace path and live identifiers.
 Commands below are sanitized reproductions; placeholders must be resolved locally.
 
+## CI noise reduction — 6 November 2026
+
+Prepared in an isolated codex/reduce-ci-noise worktree from origin/dev. Removed
+the Dependabot configuration and closed its five open update PRs (#11–#15)
+without merging. PR #16 remains untouched. Existing main/doctor changes and all
+other worktrees remain intact, verified with their revisions, status records,
+and SHA-256 fingerprints of pending files before and after this work.
+
+All three workflows now run on PRs, main pushes, merge queue requests, and manual
+dispatch. Feature/dev branch pushes and tag pushes do not start duplicate runs.
+OSV's schedule changes from daily to Monday at 07:23 UTC. All six check names,
+Linux/Windows suites, package verification, full-history secret scanning, scanner
+canaries, action pins, permissions, and PR cancellation behavior are unchanged.
+No application code, tests, dependency versions, scanner rules, or hooks changed.
+
+Updated the CI, dependency monitoring, security, and branch/worktree guides and
+roadmap. Dependencies are maintained through manual feature PRs into dev, monthly
+or before release. Historical audit/report entries remain as dated evidence.
+Dependabot alerts/security fixes were already disabled; no security protections
+or personal notification preferences were changed. No AWS calls were performed.
+
+The cleanup is prepared for review only. Dependabot's configuration removal and
+the weekly schedule take effect after promotion to main. Until then the old
+default-branch configuration can still generate updates and daily runs. No PR
+was merged as part of this request.
+
+Verification used uv 0.13.4, Python 3.15.0, the offline package cache, a separate
+worktree virtual environment, and writable worktree-local TEMP/TMP. AWS_PROFILE
+and AWS_DEFAULT_PROFILE were cleared only for the mocked test process.
+
+1. `actionlint` 1.7.12 against all three workflows: passed. Compared each workflow
+   with origin/dev: only the main push filter and weekly cron changed; the entire
+   permissions/concurrency/jobs content is identical. Confirmed no application,
+   test, dependency, scanner-rule, or hook diff. No regression test was removed.
+2. `uv lock --check`: passed, 21 packages resolved.
+3. `uv run --locked pytest -q --tb=short`: **288 passed**, no skips, 154.65s.
+4. `uv run --locked ruff check .`: passed.
+5. `uv run --locked ruff format --check .`: passed, 50 files formatted.
+6. `uv run --locked python scripts/check_distribution.py`: passed wheel/source
+   builds, archive inspection, isolated installations, and command smoke checks.
+7. `uv run --locked python scripts/security_check.py --history`: passed working
+   files, reachable history, and scanner canaries; repeated after the final report
+   update before publication. The existing uv/build-backend version warning is
+   non-failing; dependency versions were deliberately left unchanged.
+8. `git diff --check`: passed. Compared the saved revisions, pending-file hashes,
+   and Git status for all eight pre-existing worktrees: unchanged.
+9. GitHub confirmed all five Dependabot PRs closed without merging, with no open
+   Dependabot PRs remaining. Required-check settings and PR #16 were not modified.
+
+Hosted PR validation is reported separately after publishing. No new settings
+are required for the existing six required checks; activation requires merging
+through dev and promoting the workflow/configuration changes into main.
+
 ## Outcome and command coverage
 
 | Milestone | Commands | Implemented behavior |

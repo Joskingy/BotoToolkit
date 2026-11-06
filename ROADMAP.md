@@ -1,5 +1,15 @@
 # amplify-ops roadmap
 
+## CI noise reduction prepared 6 November 2026
+
+Removed Dependabot version-update configuration. All six required PR checks,
+both test platforms, and secret scanning remain. Push-triggered verification is
+limited to main; OSV monitoring runs weekly on Monday at 07:23 UTC, plus PRs,
+main pushes, merge queue requests, and manual runs. Dependencies are reviewed
+manually monthly or before releases. These changes await review and promotion
+to main; core milestones 1–7 remain complete. Historical entries below describe
+the configuration at their original implementation dates.
+
 ## Audit security remediation prepared 6 November 2026
 
 Implemented text-only publication enforcement across working files, index, and
