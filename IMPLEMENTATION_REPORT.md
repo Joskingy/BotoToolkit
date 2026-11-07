@@ -6,6 +6,38 @@ This public report omits the local workspace path and live identifiers.
 Commands below are sanitized reproductions; placeholders must be resolved locally.
 
 
+
+## CI terminal-output correction — 7 November 2026
+
+Initial hosted doctor runs failed 41 CLI error-text assertions on both Linux and
+Windows (375 other tests passed on each). Rich ANSI styling split option names
+inside captured output. A safe missing-options invocation reproduced the missing
+plain substring under GitHub/forced-color terminal settings. AWS option gates,
+exit codes, and no-call behavior were already correct.
+
+Normalized only the semantic text comparisons with Rich Text.from_ansi(...).plain,
+using the existing dependency. Added plain and colored parametrization to all
+41 affected cases and asserted that the requested styling was actually exercised.
+All prior exit-code and no-AWS/no-collector-call assertions remain. No runtime,
+workflow, scanner, dependency, or security rule was changed; no test was skipped.
+
+Verification:
+1. Affected CLI file: 116 passed in 2.91 seconds after correction.
+2. Full suite under CI-like GITHUB_ACTIONS/forced-color settings, with terminal
+   suppression removed and a short writable test directory: **457 passed** in
+   139.94 seconds, no skips or failures. Command: `uv run --locked pytest -q
+   --basetemp TEMP_TEST_DIRECTORY --tb=short`.
+3. `uv sync --locked`, `uv lock --check`, `uv run --locked ruff check .`, and
+   `uv run --locked ruff format --check .`: passed (55 files formatted).
+4. `uv run --locked python scripts/check_distribution.py`: wheel/source builds
+   and isolated installs passed under the same terminal settings.
+5. `uv run --locked python scripts/security_check.py --history --require-history`
+   and `git diff --check`: passed. Scan and hooks run again for the final commit.
+
+The two original implementation commits and original pending-file backups remain
+available. Main is untouched. This correction is an additional review commit on
+PR #21; both PRs stay open and unmerged. Fresh hosted checks run on publication.
+
 ## Doctor PR preparation — 7 November 2026
 
 Prepared the existing doctor implementation and test-isolation changes for a

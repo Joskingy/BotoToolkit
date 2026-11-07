@@ -9,7 +9,8 @@ have already been promoted; earlier pending-promotion entries below are history.
 Doctor and stronger test isolation are prepared for a PR into dev without merging.
 The initial doctor scope excludes scanner, hook, GitHub-login, and service IAM
 checks. Shared deployment coordination and broader diagnostics remain optional
-follow-ups. Offline checks and mocked online behavior are validated separately
+follow-ups. Plain and colored CLI error assertions now cover the CI
+terminal difference; the expanded offline suite passes 457 tests. Offline checks and mocked online behavior are validated separately
 from hosted Linux/Windows CI and live AWS verification.
 
 ## Completed worktree cleanup — 6 November 2026

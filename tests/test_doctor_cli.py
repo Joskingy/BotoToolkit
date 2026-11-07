@@ -6,6 +6,7 @@ from unittest.mock import Mock
 import pytest
 from botocore.exceptions import EndpointConnectionError
 from conftest import ACCOUNT, ARN, OTHER_REGION, REGION, identity_response
+from rich.text import Text
 from typer.testing import CliRunner
 
 from amplify_ops.cli import app
@@ -68,6 +69,15 @@ def passing_checks(monkeypatch):
     collector = Mock(return_value=[DoctorCheck("local_setup", "pass", "Setup is ready.", "")])
     monkeypatch.setattr("amplify_ops.cli.collect_checks", collector)
     return collector
+
+
+@pytest.fixture(params=(False, True), ids=("plain", "colored"))
+def terminal_output(request, monkeypatch):
+    """Exercise semantic errors with and without Rich's terminal styling."""
+    monkeypatch.setattr("typer.rich_utils.FORCE_TERMINAL", request.param)
+    monkeypatch.setattr("typer.rich_utils.COLOR_SYSTEM", "standard" if request.param else None)
+    monkeypatch.delenv("NO_COLOR", raising=False)
+    return request.param
 
 
 def parse_report(result):
@@ -145,7 +155,9 @@ def test_selected_missing_profile_fails_locally_without_aws(local_config):
 
 @pytest.mark.parametrize("command", AWS_COMMANDS)
 @pytest.mark.parametrize("omitted", ("--profile", "--expected-account", "--region", "all"))
-def test_existing_aws_commands_still_require_each_explicit_option(monkeypatch, command, omitted):
+def test_existing_aws_commands_still_require_each_explicit_option(
+    monkeypatch, command, omitted, terminal_output
+):
     factory = Mock(side_effect=AssertionError("AWS called before options were validated"))
     monkeypatch.setattr("amplify_ops.aws.boto3.Session", factory)
     options = []
@@ -157,7 +169,8 @@ def test_existing_aws_commands_still_require_each_explicit_option(monkeypatch, c
     result = runner.invoke(app, options + [command] + AWS_COMMANDS[command])
 
     assert result.exit_code == 2, result.output
-    assert ("--profile" if omitted == "all" else omitted) in result.output
+    assert ("--profile" if omitted == "all" else omitted) in Text.from_ansi(result.output).plain
+    assert ("\x1b[" in result.output) is terminal_output
     factory.assert_not_called()
 
 
@@ -181,7 +194,9 @@ def test_doctor_rejects_explicit_malformed_settings_before_local_checks(passing_
 
 
 @pytest.mark.parametrize("omitted", ("--profile", "--expected-account", "--region", "all"))
-def test_online_doctor_requires_all_explicit_settings_before_checks(passing_checks, omitted):
+def test_online_doctor_requires_all_explicit_settings_before_checks(
+    passing_checks, omitted, terminal_output
+):
     options = []
     if omitted != "all":
         for index in range(0, len(OPTIONS), 2):
@@ -191,17 +206,19 @@ def test_online_doctor_requires_all_explicit_settings_before_checks(passing_chec
     result = runner.invoke(app, options + ["doctor", "--online", "--format", "json"])
 
     assert result.exit_code == 2, result.output
-    assert ("--profile" if omitted == "all" else omitted) in result.output
+    assert ("--profile" if omitted == "all" else omitted) in Text.from_ansi(result.output).plain
+    assert ("\x1b[" in result.output) is terminal_output
     passing_checks.assert_not_called()
 
 
-def test_online_doctor_rejects_multiple_regions_before_checks(passing_checks):
+def test_online_doctor_rejects_multiple_regions_before_checks(passing_checks, terminal_output):
     result = runner.invoke(
         app, OPTIONS + ["--region", OTHER_REGION, "doctor", "--online", "--format", "json"]
     )
 
     assert result.exit_code == 2, result.output
-    assert "--region" in result.output
+    assert "--region" in Text.from_ansi(result.output).plain
+    assert ("\x1b[" in result.output) is terminal_output
     passing_checks.assert_not_called()
 
 
