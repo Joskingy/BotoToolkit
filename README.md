@@ -1,6 +1,6 @@
 # amplify-ops
 
-A Python CLI for verified AWS identity, Amplify **Hosting** inventory,
+A Python CLI for local setup diagnostics, verified AWS identity, Amplify **Hosting** inventory,
 deployment investigation, redacted configuration comparison, AppSync expiration,
 costs, stale-environment evidence, and explicitly reviewed deployment retries.
 Milestone 1 lists apps, branches, and deployment job summaries across explicitly
@@ -27,6 +27,7 @@ The repository pins the 3.15 series in `.python-version`; commit `uv.lock`.
 ```powershell
 uv sync --locked
 uv run --locked amplify-ops --help
+uv run --offline --no-sync amplify-ops doctor --project .
 ```
 
 For contributors, cloning the repository and running these uv commands is the
@@ -46,13 +47,29 @@ similarly named package on a registry is this project.
 The original `src/bototoolkit` scaffold and `bototoolkit` entry point are preserved;
 the project distribution and new command are named `amplify-ops`.
 
+## Check your setup
+
+Run `amplify-ops doctor` from an installed tool, or use the offline uv command
+above from a clone. It reports prerequisite checks and suggested fixes as a
+table. Add `--format json` for structured results. `--project .` also checks the
+repository lockfile and installed dependencies using offline uv commands.
+
+Doctor does not resolve credentials or contact AWS by default. Missing AWS
+selections are warnings; failed checks return exit code 1. Opt in to STS-only
+identity verification with the three explicit global AWS options followed by
+`doctor --online`. Passing identity verification does not establish service
+permissions. Doctor reports omit selected account IDs, caller ARNs, profile
+names, local paths, credential values, and raw errors. See the
+[doctor guide](docs/doctor.md) for examples, exit codes, and limitations.
+
 ## Authentication and local profile mapping
 
 This workspace uses local profile **brewmaster**. Configure/sign in to that profile
 through your normal AWS CLI or IAM Identity Center workflow. Never paste credentials
 into source code, CLI options, reports, issues, or chat.
 
-Every invocation requires `--profile`, `--expected-account`, and `--region`.
+AWS commands and `doctor --online` require `--profile`, `--expected-account`,
+and `--region`. Offline `doctor` and command help work without AWS options.
 ACCOUNT_ID, APP_ID, API_ID, and OWNER/REPOSITORY are placeholders. Resolve
 them locally before running any command; never commit the resolved values. Use the intended account ID as an independent assertion; do not
 derive it from STS merely to make the assertion pass.
@@ -77,7 +94,8 @@ application fallback to default credentials or another profile. Boto3 resolves
 the chosen profile's configured credential provider (for example SSO or a
 profile-configured role). Configured endpoint URL overrides are ignored.
 
-Identity and selected regions go to stderr. Inventory JSON alone goes to stdout,
+For AWS reporting commands, identity and selected regions go to stderr.
+Doctor emits redacted check findings instead. Inventory JSON alone goes to stdout,
 so it can be piped to other tools. `identity` also prints the account and ARN on
 stdout for interactive use. SDK debug/wire logging is never enabled.
 

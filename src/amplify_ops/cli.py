@@ -15,12 +15,21 @@ from amplify_ops.aws import AuthenticationFailure, AwsAccess, ResourceFailure
 from amplify_ops.comparison import compare_configuration
 from amplify_ops.costs import cost_report
 from amplify_ops.deployments import DeploymentBlocked, create_plan, execute_plan, load_plan
+from amplify_ops.doctor import collect_checks
 from amplify_ops.inventory import collect_inventory, timestamp
 from amplify_ops.investigation import investigate_job
-from amplify_ops.models import Comparison, Inventory, Investigation, Report
+from amplify_ops.models import (
+    Comparison,
+    DoctorCheck,
+    DoctorReport,
+    Inventory,
+    Investigation,
+    Report,
+)
 from amplify_ops.presentation import (
     json_report,
     render_comparison,
+    render_doctor,
     render_investigation,
     render_report,
     render_table,
@@ -46,18 +55,120 @@ class Settings:
 @app.callback()
 def configure(
     ctx: typer.Context,
-    profile: Annotated[str, typer.Option(help="Explicit local AWS profile; use brewmaster here.")],
-    expected_account: Annotated[str, typer.Option(help="Expected 12-digit AWS account ID.")],
-    region: Annotated[list[str], typer.Option(help="Selected AWS region; repeat for inventory.")],
+    profile: Annotated[
+        str | None, typer.Option(help="Explicit local AWS profile; use brewmaster here.")
+    ] = None,
+    expected_account: Annotated[
+        str | None, typer.Option(help="Expected 12-digit AWS account ID.")
+    ] = None,
+    region: Annotated[
+        list[str] | None, typer.Option(help="Selected AWS region; repeat for inventory.")
+    ] = None,
 ) -> None:
-    """Verify AWS identity, report on Amplify resources, and plan controlled job retries."""
-    if not profile.strip() or "<" in profile or ">" in profile:
+    """Check local setup, verify AWS identity, and report on Amplify resources."""
+    if profile is not None and (
+        not profile.strip()
+        or "<" in profile
+        or ">" in profile
+        or any(ord(c) < 32 or ord(c) == 127 for c in profile)
+    ):
         raise typer.BadParameter("Provide a resolved, explicit profile.", param_hint="--profile")
-    if not re.fullmatch(r"[0-9]{12}", expected_account):
+    if expected_account is not None and not re.fullmatch(r"[0-9]{12}", expected_account):
         raise typer.BadParameter("Use a 12-digit account ID.", param_hint="--expected-account")
-    if any(not re.fullmatch(r"[a-z]{2}(?:-[a-z]+)+-[0-9]+", item) for item in region):
+    if any(not re.fullmatch(r"[a-z]{2}(?:-[a-z]+)+-[0-9]+", item) for item in region or []):
         raise typer.BadParameter("Use resolved AWS region names.", param_hint="--region")
-    ctx.obj = Settings(profile, expected_account, list(dict.fromkeys(region)))
+    ctx.obj = Settings(profile or "", expected_account or "", list(dict.fromkeys(region or [])))
+
+
+def require_aws_options(profile: str | None, account: str | None, regions: list[str]) -> None:
+    for value, option in (
+        (profile, "--profile"),
+        (account, "--expected-account"),
+        (regions, "--region"),
+    ):
+        if not value:
+            raise typer.BadParameter("Provide this explicit AWS option.", param_hint=option)
+
+
+@app.command()
+def doctor(
+    ctx: typer.Context,
+    online: Annotated[
+        bool, typer.Option(help="Opt in to AWS STS identity verification only.")
+    ] = False,
+    project: Annotated[
+        Path | None, typer.Option(help="Explicit repository to check using uv offline validation.")
+    ] = None,
+    format: Annotated[OutputFormat, typer.Option(help="Output format.")] = OutputFormat.table,
+    output: Annotated[Path | None, typer.Option(help="Also write JSON to a new file.")] = None,
+) -> None:
+    """Diagnose local setup; credentials and network are used only with --online."""
+    settings: Settings = ctx.obj
+    if online:
+        require_aws_options(settings.profile, settings.expected_account, settings.regions)
+        if len(settings.regions) != 1:
+            raise typer.BadParameter(
+                "Select exactly one region for doctor --online.", param_hint="--region"
+            )
+    report = DoctorReport(
+        checks=collect_checks(
+            settings.profile or None, settings.expected_account or None, settings.regions, project
+        )
+    )
+    if project is not None and any(check.status == "skip" for check in report.checks):
+        report.complete = False
+    if not online:
+        report.checks.append(
+            DoctorCheck(
+                "identity",
+                "skip",
+                "AWS authentication was not tested.",
+                "Supply --profile, --expected-account and --region before doctor --online.",
+            )
+        )
+    elif any(check.status == "fail" for check in report.checks):
+        report.complete = False
+        report.checks.append(
+            DoctorCheck(
+                "identity",
+                "skip",
+                "AWS verification skipped because local checks failed.",
+                "Resolve the failed checks and rerun doctor --online.",
+            )
+        )
+    else:
+        try:
+            AwsAccess.connect(settings.profile, settings.expected_account, settings.regions[0])
+        except AuthenticationFailure:
+            report.checks.append(
+                DoctorCheck(
+                    "identity",
+                    "fail",
+                    "AWS identity verification failed.",
+                    "Check the selected profile login, connectivity, "
+                    "and independently expected account; retry.",
+                )
+            )
+        else:
+            report.checks.append(
+                DoctorCheck(
+                    "identity", "pass", "AWS caller account matches the expected account.", ""
+                )
+            )
+    document = json_report(report)
+    if format == OutputFormat.json:
+        typer.echo(document, nl=False)
+    else:
+        render_doctor(report, Console(markup=False, highlight=False))
+    if output is not None:
+        try:
+            with output.open("x", encoding="utf-8", newline="\n") as handle:
+                handle.write(document)
+        except OSError:
+            diagnostics.print("Cannot write JSON output; check the path and use a new filename.")
+            raise typer.Exit(1) from None
+    if any(check.status == "fail" for check in report.checks):
+        raise typer.Exit(1)
 
 
 def verified_access(settings: Settings) -> AwsAccess:
@@ -71,6 +182,7 @@ def verified_access(settings: Settings) -> AwsAccess:
 @app.command()
 def identity(ctx: typer.Context) -> None:
     """Verify the selected profile's account and display its caller ARN."""
+    require_aws_options(ctx.obj.profile, ctx.obj.expected_account, ctx.obj.regions)
     try:
         access = verified_access(ctx.obj)
     except AuthenticationFailure as error:
@@ -90,6 +202,7 @@ def inventory(
     ] = None,
 ) -> None:
     """List apps, branches, and latest deployments in explicitly selected regions."""
+    require_aws_options(ctx.obj.profile, ctx.obj.expected_account, ctx.obj.regions)
     try:
         access = verified_access(ctx.obj)
         report = collect_inventory(access, ctx.obj.regions)
@@ -149,6 +262,7 @@ def investigate(
     output: Annotated[Path | None, typer.Option(help="Also write JSON to a new file.")] = None,
 ) -> None:
     """Investigate a failed deployment or explicitly selected job (read-only)."""
+    require_aws_options(ctx.obj.profile, ctx.obj.expected_account, ctx.obj.regions)
     validate_target(ctx.obj, app_id, [(branch, "--branch")])
     if job_id is not None and not re.fullmatch(r"[0-9]{1,255}", job_id):
         raise typer.BadParameter("Use a numeric job ID.", param_hint="--job-id")
@@ -200,6 +314,7 @@ def compare(
     ] = None,
 ) -> None:
     """Compare two branches and shared app configuration without exporting values."""
+    require_aws_options(ctx.obj.profile, ctx.obj.expected_account, ctx.obj.regions)
     validate_target(ctx.obj, app_id, [(source, "--source"), (target, "--target")])
     if source == target:
         raise typer.BadParameter("Select two distinct branches.", param_hint="--target")
@@ -228,6 +343,7 @@ def api_keys(
     output: Path | None = None,
 ) -> None:
     """Report GraphQL API-key expiration without printing API keys."""
+    require_aws_options(ctx.obj.profile, ctx.obj.expected_account, ctx.obj.regions)
     if app_id:
         if not api_id:
             raise typer.BadParameter(
@@ -259,6 +375,7 @@ def costs(
     output: Path | None = None,
 ) -> None:
     """Report verified-account costs by service, optionally with a tag-based estimate."""
+    require_aws_options(ctx.obj.profile, ctx.obj.expected_account, ctx.obj.regions)
     if ctx.obj.regions != ["us-east-1"]:
         raise typer.BadParameter(
             "Select us-east-1 for the Cost Explorer endpoint; billing scope is all regions."
@@ -290,6 +407,7 @@ def stale(
     output: Path | None = None,
 ) -> None:
     """Report conservative stale Hosting branch candidates using AWS and GitHub evidence."""
+    require_aws_options(ctx.obj.profile, ctx.obj.expected_account, ctx.obj.regions)
     validate_target(ctx.obj, app_id, [])
     if not re.fullmatch(
         r"[A-Za-z0-9][A-Za-z0-9-]{0,38}/[A-Za-z0-9_.-]+", repository
@@ -314,6 +432,7 @@ def deploy_plan(
     format: OutputFormat = OutputFormat.table,
 ) -> None:
     """Plan RETRY of a completed job, with read-only preflight; never deploys."""
+    require_aws_options(ctx.obj.profile, ctx.obj.expected_account, ctx.obj.regions)
     validate_target(ctx.obj, app_id, [(branch, "--branch")])
     if not re.fullmatch(r"[0-9]{1,255}", job_id):
         raise typer.BadParameter("Use a numeric job ID.", param_hint="--job-id")
@@ -354,6 +473,7 @@ def deploy(
     output: Path | None = None,
 ) -> None:
     """Execute a reviewed retry plan (WRITES AWS); no automatic retry or rollback."""
+    require_aws_options(ctx.obj.profile, ctx.obj.expected_account, ctx.obj.regions)
     try:
         selected = load_plan(plan)
         validate_target(ctx.obj, selected.app_id, [(selected.branch, "--branch")])

@@ -1,8 +1,8 @@
 # BotoToolkit quick start
 
 Version 0.1.0. PowerShell guide for the committed AWS commands and developer
-helper. The separate doctor feature is not required for these steps. Reporting
-and planning read AWS; only `deploy` writes AWS.
+helper. Optional local setup diagnostics are covered in the [doctor guide](doctor.md).
+Reporting and planning read AWS; only `deploy` writes AWS.
 Keep reports private even though secret values are redacted.
 
 ## 1 Prepare a checkout

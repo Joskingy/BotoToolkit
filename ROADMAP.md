@@ -1,6 +1,21 @@
 # amplify-ops roadmap
 
-## Current delivery status — 7 November 2026
+## Doctor integration and test simplification — 7 November 2026
+
+Core milestones 1–7 remain complete. PR #20 is merged into dev, and this doctor
+branch incorporates that dev revision while preserving the documentation and
+historical implementation records from both branches. Doctor provides offline
+setup diagnostics and opted-in STS-only verification; service IAM, scanner/hook
+checks, repair operations, and distributed deployment coordination remain outside
+its initial scope. Promotion from dev into main remains a separate reviewed step.
+
+The reduced suite keeps 27 independent AWS command/option guards and four focused
+plain/colored error regressions. The full suite passes 411 cases, reduced from
+457, under CI-like terminal settings. Other identity, privacy, bounded-input, output,
+package, and test-isolation coverage remains unchanged. Earlier totals of 457
+and preparation-state statements below are historical and superseded here.
+
+## Documentation integration baseline — 7 November 2026
 
 Core milestones 1–7 remain complete. Security remediation and Python dependency
 monitoring were promoted in PR #10. PRs #16 and #17 were merged, their changes
@@ -242,3 +257,31 @@ explicit approval before merging. Main and dev match their remote branches; feat
 current dev with its pending work preserved. Historical merged worktrees remain
 intact. Core milestones 1–7 remain complete; see the implementation report for
 the preservation and verification record.
+
+## Doctor review status — 7 November 2026
+
+Core milestones 1–7 remain complete. This feature is based on synchronized dev
+after PR #19. Security changes and the Dependabot removal/weekly OSV schedule
+have already been promoted; earlier pending-promotion entries below are history.
+
+Doctor and stronger test isolation are prepared for a PR into dev without merging.
+The initial doctor scope excludes scanner, hook, GitHub-login, and service IAM
+checks. Shared deployment coordination and broader diagnostics remain optional
+follow-ups. Plain and colored CLI error assertions now cover the CI
+terminal difference; the expanded offline suite passes 457 tests. Offline checks and mocked online behavior are validated separately
+from hosted Linux/Windows CI and live AWS verification.
+
+## Doctor and follow-up test audit - implemented locally
+
+Added offline setup diagnostics for Python, installed package metadata, explicit
+local AWS profile/selection checks, and optional offline repository lockfile and
+dependency validation. Online mode opts in to the existing STS account gate
+only. Table and versioned JSON reports export fixed findings and suggested fixes,
+without identities, paths, credentials, or raw errors. All command help now works
+without AWS settings; live commands retain their explicit option gates.
+
+The audit reproduced and fixed inherited AWS/Git configuration affecting tests,
+strengthened network isolation, and retained active compatibility and security
+coverage. No legacy removal was justified. See docs/doctor.md and the latest
+IMPLEMENTATION_REPORT.md section for behavior, evidence, exact checks, and
+remaining rollout limits.

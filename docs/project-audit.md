@@ -16,8 +16,8 @@ runs weekly on Monday at 07:23 UTC, plus configured change/manual events. Review
 dependency updates manually monthly or before releases. Completed worktrees
 were retired with recovery backups; main, dev, and doctor work were preserved.
 
-Doctor is prepared separately for review, with offline diagnostics and optional
-STS-only verification. Scanner/hook/login checks and service-permission probing
+Doctor now implements offline diagnostics and optional STS-only verification;
+its integration and reduced regression matrix are recorded in PR #21. Scanner/hook/login checks and service-permission probing
 are outside its initial scope. Broader IAM verification, coverage measurement,
 and the remaining reliability/usability proposals are follow-up work. The Word
 guide remains private and needs rendering/page inspection.

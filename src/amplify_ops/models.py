@@ -235,3 +235,19 @@ class DeploymentReceipt:
     job_id: str
     status: str
     outcome: str
+
+
+@dataclass(frozen=True)
+class DoctorCheck:
+    name: str
+    status: str
+    message: str
+    next_step: str
+
+
+@dataclass
+class DoctorReport:
+    report_type: str = "doctor"
+    schema_version: int = 1
+    complete: bool = True
+    checks: list[DoctorCheck] = field(default_factory=list)
