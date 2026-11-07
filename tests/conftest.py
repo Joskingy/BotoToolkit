@@ -1,5 +1,6 @@
 """Stubber exercises real SDK shapes and pagination; network is forbidden."""
 
+import os
 from contextlib import ExitStack
 from datetime import UTC, datetime
 from unittest.mock import Mock
@@ -17,18 +18,44 @@ ARN = f"arn:aws:iam::{ACCOUNT}:user/test"
 
 
 @pytest.fixture(autouse=True)
-def forbid_network(monkeypatch):
+def isolate_external_configuration(monkeypatch, tmp_path_factory):
+    """Never load a developer's credentials, providers, Git hooks, or signing settings."""
+    configuration = tmp_path_factory.mktemp("external-configuration")
+    for name in tuple(os.environ):
+        if name.startswith(("AWS_", "GIT_")) or name == "BOTO_CONFIG":
+            monkeypatch.delenv(name)
+    for name, filename in (
+        ("AWS_CONFIG_FILE", "aws-config"),
+        ("AWS_SHARED_CREDENTIALS_FILE", "aws-credentials"),
+        ("BOTO_CONFIG", "boto-config"),
+    ):
+        target = configuration / filename
+        target.write_text("", encoding="utf-8")
+        monkeypatch.setenv(name, str(target))
+    monkeypatch.setenv("AWS_EC2_METADATA_DISABLED", "true")
+    monkeypatch.setattr(boto3, "DEFAULT_SESSION", None)
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", os.devnull)
+    monkeypatch.setenv("GIT_CONFIG_NOSYSTEM", "1")
+    template = configuration / "git-template"
+    (template / "hooks").mkdir(parents=True)
+    monkeypatch.setenv("GIT_TEMPLATE_DIR", str(template))
+
+
+@pytest.fixture(autouse=True)
+def forbid_network(monkeypatch, isolate_external_configuration):
     def fail(*args, **kwargs):
         pytest.fail("Tests must not make network calls")
 
     monkeypatch.setattr(Endpoint, "_send", fail)
     monkeypatch.setattr("socket.create_connection", fail)
+    monkeypatch.setattr("socket.socket.connect", fail)
+    monkeypatch.setattr("socket.socket.connect_ex", fail)
     monkeypatch.setattr("amplify_ops.github.run_command", fail)
 
 
 @pytest.fixture
 def harness(monkeypatch):
-    # These literal fake credentials bypass all real credential providers.
+    # Literal fake credentials plus isolated configuration avoid real providers.
     real = boto3.Session(
         aws_access_key_id="testing", aws_secret_access_key="testing", region_name=REGION
     )
