@@ -6,10 +6,10 @@ from dataclasses import asdict, fields
 from rich.console import Console
 from rich.table import Table
 
-from amplify_ops.models import Comparison, Inventory, Investigation, Report
+from amplify_ops.models import Comparison, DoctorReport, Inventory, Investigation, Report
 
 
-def json_report(report: Inventory | Investigation | Comparison | Report) -> str:
+def json_report(report: Inventory | Investigation | Comparison | Report | DoctorReport) -> str:
     return json.dumps(asdict(report), indent=2, ensure_ascii=True) + "\n"
 
 
@@ -132,3 +132,18 @@ def render_report(report: Report, console: Console) -> None:
         )
     for observation in report.observations:
         console.print(observation)
+
+
+def render_doctor(report: DoctorReport, console: Console) -> None:
+    failed = sum(check.status == "fail" for check in report.checks)
+    warnings = sum(check.status == "warn" for check in report.checks)
+    console.print(f"Doctor: {failed} failed checks, {warnings} warnings.")
+    table = Table(title="Setup diagnostics", show_lines=True)
+    for name in ("Check", "Status", "Finding", "Next step"):
+        table.add_column(name, overflow="fold")
+    for check in report.checks:
+        table.add_row(check.name, check.status.upper(), check.message, check.next_step or "-")
+    console.print(table)
+    console.print(
+        "Only the checks listed above were performed; service permissions are not tested."
+    )

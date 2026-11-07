@@ -1,5 +1,17 @@
 # amplify-ops roadmap
 
+## Doctor review status — 7 November 2026
+
+Core milestones 1–7 remain complete. This feature is based on synchronized dev
+after PR #19. Security changes and the Dependabot removal/weekly OSV schedule
+have already been promoted; earlier pending-promotion entries below are history.
+
+Doctor and stronger test isolation are prepared for a PR into dev without merging.
+The initial doctor scope excludes scanner, hook, GitHub-login, and service IAM
+checks. Shared deployment coordination and broader diagnostics remain optional
+follow-ups. Offline checks and mocked online behavior are validated separately
+from hosted Linux/Windows CI and live AWS verification.
+
 ## Completed worktree cleanup — 6 November 2026
 
 Four merged worktrees were retired after full local backup and hash verification.
@@ -193,3 +205,18 @@ check is required on main and dev. Core milestones 1–7 remain complete.
 The follow-up synchronization branch includes the promotion commit and is
 prepared for a PR into dev. Pending main/doctor work and historical worktrees
 remain preserved; synchronization merge approval is still outstanding.
+
+## Doctor and follow-up test audit - implemented locally
+
+Added offline setup diagnostics for Python, installed package metadata, explicit
+local AWS profile/selection checks, and optional offline repository lockfile and
+dependency validation. Online mode opts in to the existing STS account gate
+only. Table and versioned JSON reports export fixed findings and suggested fixes,
+without identities, paths, credentials, or raw errors. All command help now works
+without AWS settings; live commands retain their explicit option gates.
+
+The audit reproduced and fixed inherited AWS/Git configuration affecting tests,
+strengthened network isolation, and retained active compatibility and security
+coverage. No legacy removal was justified. See docs/doctor.md and the latest
+IMPLEMENTATION_REPORT.md section for behavior, evidence, exact checks, and
+remaining rollout limits.
