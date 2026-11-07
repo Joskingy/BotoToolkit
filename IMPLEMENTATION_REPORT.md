@@ -5,6 +5,107 @@ Generated AWS timestamps are UTC and therefore show October 17 for later checks.
 This public report omits the local workspace path and live identifiers.
 Commands below are sanitized reproductions; placeholders must be resolved locally.
 
+## Documentation PR preparation — 7 November 2026
+
+Prepared the five pending main documents on codex/docs-guides from origin/dev,
+plus refreshed the existing project audit summary. The original main files remain
+untouched and are backed up with checksums in ignored local recovery storage.
+Doctor changes have separate backup storage and are excluded from this PR.
+
+Updated the current roadmap to reflect merged PRs #10, #16–#19, removed Dependabot,
+and weekly OSV. Updated the audit's remediation status, removed the quick-start's
+obsolete revision reference, and limited the workflow diagrams' identity gate to
+AWS operations. The private Word guide remains a draft pending visual inspection.
+No runtime, test, workflow, IAM, or GitHub protection changes are included.
+
+The records below describe their original execution dates. In particular, prior
+statements that PR #10 or #19 was open, OSV ran daily, Dependabot was configured,
+or retired worktrees remained present are historical and superseded by the
+current roadmap. No promotion or synchronization merge is pending for those PRs.
+New documentation and doctor PRs are prepared for review without merging.
+
+Verification used pinned uv 0.13.4, Python 3.15.0, UV_OFFLINE=1, the local
+package cache, a separate project environment, and short disposable pytest paths.
+No live AWS calls occurred. Exact sequence and results:
+
+1. `uv sync --locked` and `uv lock --check`: passed, 21 packages resolved.
+2. `uv run --locked pytest -q --basetemp TEMP_TEST_DIRECTORY --tb=short`:
+   **288 passed** in 158.55 seconds; no skips or failures.
+3. `uv run --locked ruff check .`: passed.
+4. `uv run --locked ruff format --check .`: passed, 52 files formatted.
+5. `uv run --locked python scripts/check_distribution.py`: passed wheel and
+   source builds, private-path inspection, isolated installs, and CLI smoke tests.
+6. `uv run --locked python scripts/security_check.py --history --require-history`:
+   passed publishable files, reachable history, and scanner canaries.
+7. `git diff --check`: passed. Final document edits are scanned again before
+   committing; staged/history hooks also run at publication.
+8. Parsed all nine quick-start PowerShell blocks without executing them.
+   All nine AWS command help paths passed using synthetic identity arguments.
+   Fourteen checked local documentation links resolved; both Mermaid blocks are
+   retained. Mermaid visual rendering and private Word page QA remain unverified.
+
+Original pending files were copied and hash-verified before preparation. Main
+retains all original pending edits byte-for-byte. Doctor runtime, tests, README,
+contribution guide, and doctor guide retain original bytes; existing doctor
+report/roadmap sections remain present below the new preparation notes. Recovery
+copies and prior backups remain ignored and unpublished. No merge, infrastructure
+change, tag, or branch-protection change is part of this preparation. Hosted PR
+checks remain separate from these local results.
+
+
+## Historical: Local branch update after promotion #18 — 6 November 2026
+
+Fast-forwarded main to origin/main (c6fabc9), dev to origin/dev (7953359), and
+feature/doctor to the same dev revision. Main's five pending files and doctor's
+fourteen pending files were copied to ignored recovery folders, checksummed,
+and stashed with untracked files before updating. Both recovery stashes remain.
+
+Conflicts occurred only in additive report/roadmap sections. Preserved all local
+and upstream sections and restored the original unstaged/untracked state.
+Pending files without incoming changes were restored byte-for-byte; the reports
+and roadmaps retain every original added/changed text block. Private ignored
+files and previous recovery material remain in place. Other worktrees were not
+changed. This new verification record and the roadmap status remain local edits.
+
+Remote main and dev have identical file trees, but main includes the promotion
+merge commit not yet in dev. Opened PR #19 directly from main into dev: one
+commit and zero changed files. No extra synchronization branch/worktree or
+documentation-only commit was created. The PR remains open for review; no merge
+was requested or performed in this operation. If dev advances, resolve in a
+temporary branch instead of merging unreleased changes into main.
+
+Verification used uv 0.13.4, Python 3.15.0, the offline package cache, separate
+worktree environments, and writable worktree-local TEMP/TMP. AWS_PROFILE and
+AWS_DEFAULT_PROFILE were cleared only in the mocked test processes.
+
+1. `uv lock --check`: passed in dev and doctor, 21 packages resolved.
+2. `uv run --locked pytest -q --tb=short`: dev **288 passed** (160.82s),
+   doctor **416 passed** (172.86s), with no skips. Main has identical committed
+   files to dev and only pending documentation edits, so its runtime suite was
+   not redundantly rerun.
+3. `uv run --locked ruff check .`: passed in main, dev, and doctor.
+4. `uv run --locked ruff format --check .`: passed in main, dev, and doctor
+   (52, 50, and 55 files respectively).
+5. `uv run --locked python scripts/check_distribution.py`: passed in dev and
+   doctor, including isolated wheel/source installs and doctor's installed CLI.
+6. `python scripts/security_check.py --history`: passed in main before PR
+   creation and again after the final report/roadmap edits. The equivalent
+   `uv run --locked` command passed in dev and doctor, including canaries.
+7. `git diff --check`: passed after conflict resolution and final documentation.
+   Original pending-file preservation was verified against checksummed backups;
+   no unresolved conflicts remain. Both new recovery stashes remain available.
+8. `git rev-list --left-right --count` returned `0 0` for main versus origin/main,
+   dev versus origin/dev, and doctor versus origin/dev. `git diff --quiet
+   origin/dev origin/main` passed: the synchronization changes ancestry only.
+9. All six hosted PR #19 checks passed: quality, Linux/Windows tests, package,
+   sensitive-information, and python-vulnerabilities. GitHub reports the PR
+   conflict-free and open. No extra branch or worktree was created.
+
+Recovery files and check logs are in ignored `.uv/promotion-sync/`, with separate
+main-after-pr18 and doctor-after-pr18 backup folders. Main retains five pending
+files and doctor retains fourteen; dev is clean. No AWS calls occurred. The only
+remaining synchronization step is review and approval to merge PR #19.
+
 ## CI noise reduction — 6 November 2026
 
 Prepared in an isolated codex/reduce-ci-noise worktree from origin/dev. Removed
@@ -952,3 +1053,189 @@ and AWS_DEFAULT_PROFILE only in the test process. Ran in this order:
 
 No live AWS requests or deployments were performed. Pending application feature
 work and local documentation are excluded from the synchronization PR.
+
+## Project audit and usage guide dated 5 November 2026
+
+### Changes and scope
+
+Added `docs/project-audit.md` with five findings, evidence, scope limits, a
+seven-step improvement plan, acceptance criteria, and optional features. Added
+`docs/quick-start.md` with a 1,071-word PowerShell guide and generated the Word
+copy at `reports/BotoToolkit-Quick-Start.docx`. The Word file remains ignored;
+its decompressed content was scanned separately. Appended the roadmap status.
+No application, test, CI, scanner, branch, GitHub setting, or AWS resource changed.
+
+Reviewed main `c86b0c6`, recorded origin/main `c0edb5d`, and the helper/CI at dev
+`5a0fc1e`. Application source and lockfile match the newer main. The four existing
+modified files were preserved; report/roadmap additions are append-only. Private
+backups of their pre-audit contents are under `.uv/audit-originals/`. Existing
+Dependabot and CI-document changes remain byte-for-byte unchanged. Running uv
+refreshed the ignored local virtual environment to the selected Python 3.15.0.
+
+### Exact verification sequence and results
+
+Commands below use portable paths rather than personal home directories. Tests
+used the pinned uv 0.13.4 and Python 3.15.0, offline package cache, and a writable
+`.uv/audit-temp` TEMP/TMP directory. No live AWS calls were made.
+
+1. `git status --short --branch`, `git worktree list`, and
+   `git diff --name-status HEAD origin/main` established revision scope and
+   preserved pending changes. GitHub read-only repository metadata confirmed
+   public visibility, main default, and merge-commit-only configuration. Rulesets
+   and security-alert settings were not returned or independently verified.
+2. `uv run pytest -q --tb=short`: **195 passed**, no skips, 107.59 seconds.
+3. `uv run pytest -q --tb=short -p no:cacheprovider
+   ../BotoToolkit-dev/tests/test_dev_workflow.py
+   --basetemp .uv/audit-helper-tests`: 28 setup errors. A disposable local Git
+   push showed Windows denied Git's MSYS shell initialization. Repeated with
+   `--basetemp .uv/audit-helper-tests-retry` outside that restriction:
+   **28 passed**, 20.64 seconds. No network remote or AWS calls in these tests.
+4. `uv run ruff check .`: passed. `uv run ruff format --check .`: passed,
+   42 files formatted. `uv lock --check --offline`: passed, 21 packages resolved.
+5. Additional helper/test lint initially could not create a sibling cache.
+   `uv run ruff check --no-cache ../BotoToolkit-dev/scripts/dev.py
+   ../BotoToolkit-dev/tests/test_dev_workflow.py` passed;
+   `uv run ruff format --check --no-cache` with the same paths passed, two files.
+6. `uv run --locked python scripts/check_distribution.py`: passed wheel and
+   source-distribution builds, private-path inspection, clean installs, isolated
+   imports, and both command entry points. Cache-in-source warnings occurred;
+   archive inspection succeeded and excluded private/generated paths.
+7. `uv run --locked python scripts/security_check.py --history --require-history`:
+   passed working files, reachable history, and detection canaries. Repeated after
+   documentation edits as the final publication check. This does not remove the
+   binary-content gap discovered by the independent probe.
+8. Synthetic probes using the real pinned scanner detected a plain account marker
+   but missed it in a compressed archive and then a valid Word document. The path
+   function rejected `private/note.md` but accepted `Private/note.md`. No real
+   credential/identifier was used. Findings remain open for a future fix PR.
+9. Queried the public OSV batch API with only the 20 registry package names and
+   versions from uv.lock. Initial restricted-network lookup failed; approved
+   network access returned **zero advisory matches**. Python, uv, scanner, Actions,
+   OS, and private project code were not assessed by that query.
+10. `uv run python .uv/check-guide-cli.py`: all nine command help paths passed,
+    with synthetic identity arguments and no AWS connection. Extracted nine
+    PowerShell blocks and parsed them using the PowerShell language parser:
+    no syntax errors; operational commands were not executed.
+11. Bundled Python created/reopened the Word file, verified seven headings and the
+    exit-code table, and checked its XML, metadata, relationships, and joined text
+    with the configured scanner: passed. No embedded files or macros were present.
+    Initial default temp-directory access failed; using `.uv/audit-temp` resolved
+    that check without changing the scanner.
+12. Ran the documents skill's `render_docx.py` with the Word path,
+    `--output_dir .uv/guide-render --verbose`. It failed because `soffice.exe` is
+    unavailable. Correcting the temporary directory removed secondary cleanup
+    errors but did not resolve the missing renderer. The selected Windows bundle
+    has no LibreOffice executable. Visual QA and final document layout sign-off
+    remain incomplete; the generated Word copy is a draft pending that check.
+13. Final `git diff --check`, publishable-file/history scan, ignored-output check,
+    and preservation comparison are recorded after completion below.
+
+### Remaining limits
+
+No breach was demonstrated; neither a passing scanner nor zero advisory matches
+prove that the account or repository has never been compromised. Live IAM,
+CloudTrail/security findings, GitHub protections, ignored artifacts, distributed
+retry safety, and branch coverage remain outside this verification. No obsolete
+code or tests were removed. Fix A1/A2 and review permissions before expanding
+write capabilities. The Word guide still needs rendering and page inspection.
+
+Final verification: the first documentation scan flagged an ordinary word that
+matched the existing Amplify identifier pattern. Rephrased that sentence; no
+allowlist or scanner rule was weakened. Final file/history scanning, whitespace,
+ignored Word output, and original-edit preservation checks passed.
+
+## CLI workflow diagrams
+
+Added `docs/cli-workflow.md` with Mermaid diagrams for the command overview and
+controlled retry workflow, plus notes on identity, output, and safeguards. Linked
+the diagrams from `README.md`. No application code, milestone status, AWS
+resources, or pre-existing pending changes were modified for this request.
+
+Verification, using the local `.uv/cache` as `UV_CACHE_DIR`:
+
+1. Compared the diagrams with `src/amplify_ops/cli.py`, `aws.py`, and
+   `deployments.py`. An inline Python AST check enumerated all nine CLI commands
+   and confirmed each appears in the document and two Mermaid blocks exist.
+   The first check attempt could not write uv's default cache; rerunning with the
+   local cache passed. No Mermaid renderer was available for visual verification.
+2. Ran `uv run pytest`: **195 passed** in 99.67 seconds. For mocked tests,
+   process-local `AWS_PROFILE` and `AWS_DEFAULT_PROFILE` were cleared and
+   `TEMP`/`TMP` pointed to `.uv/cli-diagram-temp`; no live AWS calls ran.
+3. Ran `uv run ruff check .`: passed. Ran `uv run ruff format --check .`:
+   passed, 45 files already formatted.
+4. Ran `uv run python scripts/security_check.py` with the same cache and temp
+   settings after the documentation changes: passed, including scanner canaries.
+   No publication was performed; a history scan remains required before publishing.
+5. Ran `git diff --check` and separately checked the new, untracked diagram file
+   for trailing whitespace: passed. Git noted existing line-ending conversions
+   for the previously modified implementation report and roadmap.
+
+## Required-check configuration and promotion preparation — 6 November 2026
+
+### Changes and preservation
+
+Authenticated GitHub CLI access completed the previously blocked ruleset update.
+The existing active rule for main and dev now requires python-vulnerabilities
+from GitHub Actions in addition to the five existing checks. Strict up-to-date
+enforcement, bypass actors, merge policy, deletion/force-push protection, and
+review requirements are unchanged. A before/after comparison confirmed that the
+new required check was the only rule change. Effective branch-rule queries
+confirmed the six checks on both branches.
+
+Fetched origin and fast-forwarded main to origin/main, dev to origin/dev, and
+feature/doctor to origin/dev. Original pending files were copied to ignored
+recovery storage, checksummed, and stashed with untracked files before updates.
+Both stashes remain available after restoration. Additive conflicts in the main
+report/roadmap and doctor report retain both upstream and local sections. All
+original added/changed text blocks remain present; untracked files match their
+original bytes. Previously pending quarterly Dependabot changes are already
+upstream. Restored tracked edits remain unstaged. Ignored private files and
+the local Word guide were not removed.
+
+Main retains six pending files; doctor retains fourteen. Dev is clean. The four
+historical merged feature worktrees are clean, their heads are ancestors of dev,
+and their branches were retained at the reviewed commits. No branch was deleted,
+force-pushed, or reset. PR #10 proposes dev into main, with five commits and
+seventeen changed files. Pending local documentation and doctor work are not in
+that PR. Promotion requires explicit user approval; it has not been merged.
+
+### Exact verification steps and results
+
+Used pinned uv 0.13.4, Python 3.15.0, the shared offline package cache, a separate
+virtual environment per worktree, and writable worktree-local TEMP/TMP folders.
+AWS_PROFILE and AWS_DEFAULT_PROFILE were cleared only in the test processes.
+No live AWS operations were performed.
+
+Ran the following sequence in each of main, dev, and feature/doctor:
+
+1. `uv lock --check`: passed on all three, 21 packages resolved.
+2. `uv run --locked pytest -q --tb=short`: main **223 passed** (104.59s),
+   dev **288 passed** (146.69s), doctor **416 passed** (155.57s); no skips.
+3. `uv run --locked ruff check .`: passed on all three.
+4. `uv run --locked ruff format --check .`: passed on all three,
+   respectively 48, 50, and 55 files already formatted.
+5. `uv run --locked python scripts/check_distribution.py`: passed on all
+   three, including wheel/source builds, private-path checks, isolated installs,
+   and command smoke checks. Doctor's additional installed-command check passed.
+6. `uv run --locked python scripts/security_check.py --history`: passed on
+   all three, including scanner canaries and reachable history.
+7. `git diff --check`: passed after conflict resolution. Verified no unresolved
+   conflicts and confirmed preservation against the original snapshots.
+8. Queried effective rules with
+   `gh api repos/OWNER/REPOSITORY/rules/branches/main` and the dev equivalent:
+   both require all six checks. Local ignored storage contains the original
+   ruleset, updated ruleset, file backups, retained stash IDs, and check logs.
+
+9. PR #10 hosted checks passed on the promotion head: quality, Linux tests,
+   Windows tests, package, sensitive-information, and python-vulnerabilities.
+   GitHub reports no merge conflicts. The PR remains open, awaiting explicit
+   user approval for a merge commit.
+10. Repeated the main file/history scan after the report and roadmap edits;
+    scanner canaries and scanning passed. Final whitespace, conflict-state, and
+    original-edit preservation checks passed. Both recovery stashes remain.
+
+This report update remains local pending documentation work; it is not an extra
+commit on either protected branch. No further GitHub setting is required for
+this request. The daily vulnerability schedule takes effect on the default
+branch once promotion is merged. Afterwards main should be synchronized back
+into dev through the protected pull-request flow.
