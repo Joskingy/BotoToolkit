@@ -1,5 +1,6 @@
 """Build both package archives and verify installation away from the source checkout."""
 
+import json
 import os
 import subprocess
 import sys
@@ -90,6 +91,22 @@ def smoke_install(wheel: Path, requirements: Path, target: Path, env: dict[str, 
     )
     suffix = ".exe" if os.name == "nt" else ""
     run(str(binaries / f"amplify-ops{suffix}"), "--help", cwd=target.parent, env=env)
+    # Exercise doctor outside any checkout, with no AWS options or repository tools.
+    result = subprocess.run(
+        [str(binaries / f"amplify-ops{suffix}"), "doctor", "--format", "json"],
+        cwd=target.parent,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=True,
+        timeout=30,
+    )
+    report = json.loads(result.stdout)
+    assert report["report_type"] == "doctor" and report["schema_version"] == 1
+    assert report["complete"] is True and not result.stderr
+    statuses = {check["name"]: check["status"] for check in report["checks"]}
+    assert statuses["identity"] == statuses["project_files"] == "skip"
+    assert not any(status == "fail" for status in statuses.values())
     run(str(binaries / f"bototoolkit{suffix}"), cwd=target.parent, env=env)
 
 

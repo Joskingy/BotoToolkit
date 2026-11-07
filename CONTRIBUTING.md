@@ -15,6 +15,7 @@ git clone https://github.com/OWNER/REPOSITORY.git amplify-ops
 cd amplify-ops
 uv sync --locked
 uv run --locked amplify-ops --help
+uv run --offline --no-sync amplify-ops doctor --project .
 uv run --locked python scripts/install_security_tools.py
 git config --local core.hooksPath .githooks
 uv run --locked python scripts/security_check.py --history
@@ -25,6 +26,9 @@ uv sync creates .venv, installs locked dependencies including development tools,
 and installs this project in editable mode. Source edits are immediately used
 by uv run. The --locked flag rejects an outdated lockfile rather than silently
 changing it. Virtual-environment activation is optional.
+The [doctor command](docs/doctor.md) diagnoses the installed environment and
+optional repository checks without resolving AWS credentials. It is useful
+before your first live read, but does not replace tests or security scans.
 
 The scanner installer currently supports Windows x64 and Linux x64. On Linux,
 run `chmod +x .githooks/pre-commit .githooks/pre-push` before using the hooks.
