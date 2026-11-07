@@ -1,19 +1,46 @@
 # amplify-ops roadmap
 
-## Doctor review status — 7 November 2026
+## Doctor integration and test simplification — 7 November 2026
 
-Core milestones 1–7 remain complete. This feature is based on synchronized dev
-after PR #19. Security changes and the Dependabot removal/weekly OSV schedule
-have already been promoted; earlier pending-promotion entries below are history.
+Core milestones 1–7 remain complete. PR #20 is merged into dev, and this doctor
+branch incorporates that dev revision while preserving the documentation and
+historical implementation records from both branches. Doctor provides offline
+setup diagnostics and opted-in STS-only verification; service IAM, scanner/hook
+checks, repair operations, and distributed deployment coordination remain outside
+its initial scope. Promotion from dev into main remains a separate reviewed step.
 
-Doctor and stronger test isolation are prepared for a PR into dev without merging.
-The initial doctor scope excludes scanner, hook, GitHub-login, and service IAM
-checks. Shared deployment coordination and broader diagnostics remain optional
-follow-ups. Plain and colored CLI error assertions now cover the CI
-terminal difference; the expanded offline suite passes 457 tests. Offline checks and mocked online behavior are validated separately
-from hosted Linux/Windows CI and live AWS verification.
+The reduced suite keeps 27 independent AWS command/option guards and four focused
+plain/colored error regressions. The full suite passes 411 cases, reduced from
+457, under CI-like terminal settings. Other identity, privacy, bounded-input, output,
+package, and test-isolation coverage remains unchanged. Earlier totals of 457
+and preparation-state statements below are historical and superseded here.
 
-## Completed worktree cleanup — 6 November 2026
+## Documentation integration baseline — 7 November 2026
+
+Core milestones 1–7 remain complete. Security remediation and Python dependency
+monitoring were promoted in PR #10. PRs #16 and #17 were merged, their changes
+were promoted in PR #18, and PR #19 merged main back into dev. No synchronization
+PR remains pending for that promotion. Main and dev currently have identical
+committed file trees; dev also contains the synchronization merge ancestry.
+
+Dependabot version-update configuration is removed. OSV runs weekly on Monday
+at 07:23 UTC and on configured PR, main-push, merge-queue, and manual events.
+Tests and secret scanning remain enabled. Dependency updates are reviewed
+manually monthly or before releases. Existing required-check settings were not
+changed or freshly audited for this documentation preparation.
+
+Quick-start and workflow documentation are prepared separately from the doctor
+feature. Doctor is local feature work and is not part of this documentation PR.
+Its initial scope excludes scanner, Git-hook, GitHub-login, and service-permission
+checks. Broader IAM review, shareable reports, scan budgets, and shared deployment
+coordination remain follow-up work. The Word guide is a private draft awaiting
+rendering and page inspection.
+
+The entries below are historical records of their preparation dates. Statements
+about pending promotions, retained worktrees, or prior dependency schedules in
+those records are superseded by this current status; they are not open tasks.
+
+## Historical: Completed worktree cleanup — 6 November 2026
 
 Four merged worktrees were retired after full local backup and hash verification.
 The five requested main/dev/doctor/PR worktrees remain untouched. PR #16 is merged;
@@ -21,7 +48,7 @@ PR #17 is updated against the new dev and will merge after fresh required checks
 Core milestones 1–7 remain complete. Promotion to main is separate from this
 cleanup; local dev/doctor updates are deferred to preserve the requested state.
 
-## CI noise reduction prepared 6 November 2026
+## Historical: CI noise reduction prepared 6 November 2026
 
 Removed Dependabot version-update configuration. All six required PR checks,
 both test platforms, and secret scanning remain. Push-triggered verification is
@@ -31,7 +58,7 @@ manually monthly or before releases. These changes await review and promotion
 to main; core milestones 1–7 remain complete. Historical entries below describe
 the configuration at their original implementation dates.
 
-## Audit security remediation prepared 6 November 2026
+## Historical: Audit security remediation prepared 6 November 2026
 
 Implemented text-only publication enforcement across working files, index, and
 reachable history; case-insensitive private paths; bounded GitHub CLI capture;
@@ -198,7 +225,7 @@ merges, tags, and cleanup remain explicit. Merge the helper into dev before
 using start for new features; see docs/developer-helper.md and the latest
 verification record in IMPLEMENTATION_REPORT.md.
 
-## Security release and branch synchronization — 6 November 2026
+## Historical: Security release and branch synchronization — 6 November 2026
 
 PR #10 promoted the security fixes and dependency monitoring into main with a
 merge commit after all six required checks passed. The python-vulnerabilities
@@ -206,6 +233,43 @@ check is required on main and dev. Core milestones 1–7 remain complete.
 The follow-up synchronization branch includes the promotion commit and is
 prepared for a PR into dev. Pending main/doctor work and historical worktrees
 remain preserved; synchronization merge approval is still outstanding.
+
+## Security and usability review dated 5 November 2026
+
+Audit and prioritized follow-on plan: [project audit](docs/project-audit.md).
+Core milestones 1–7 remain complete. No new runtime feature is implemented by
+this review. Priorities are binary-document scanning and case-insensitive private
+paths, IAM/GitHub enforcement verification, Python dependency monitoring, and a
+safe doctor command. Later work covers shareable reports, bounded scans, and
+shared deployment coordination. Acceptance criteria and nice-to-have features
+are in the audit; coordinate doctor work with the existing feature worktree.
+
+The concise command guide is [quick start](docs/quick-start.md). A Word copy is
+stored locally in ignored reports storage. Its contents and commands were checked;
+visual rendering remains blocked by the unavailable document renderer.
+
+## Historical: Security promotion status — 6 November 2026
+
+Security remediation and Python dependency monitoring are merged into dev.
+The active main/dev rule now requires python-vulnerabilities alongside the five
+existing checks. Promotion PR #10 has passed all six required checks and awaits
+explicit approval before merging. Main and dev match their remote branches; feature/doctor includes
+current dev with its pending work preserved. Historical merged worktrees remain
+intact. Core milestones 1–7 remain complete; see the implementation report for
+the preservation and verification record.
+
+## Doctor review status — 7 November 2026
+
+Core milestones 1–7 remain complete. This feature is based on synchronized dev
+after PR #19. Security changes and the Dependabot removal/weekly OSV schedule
+have already been promoted; earlier pending-promotion entries below are history.
+
+Doctor and stronger test isolation are prepared for a PR into dev without merging.
+The initial doctor scope excludes scanner, hook, GitHub-login, and service IAM
+checks. Shared deployment coordination and broader diagnostics remain optional
+follow-ups. Plain and colored CLI error assertions now cover the CI
+terminal difference; the expanded offline suite passes 457 tests. Offline checks and mocked online behavior are validated separately
+from hosted Linux/Windows CI and live AWS verification.
 
 ## Doctor and follow-up test audit - implemented locally
 

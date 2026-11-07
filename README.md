@@ -15,6 +15,9 @@ The complete change report and step-by-step testing record are in
 [IMPLEMENTATION_REPORT.md](IMPLEMENTATION_REPORT.md).
 See [remaining command details](docs/remaining-commands.md) for AppSync, costs,
 stale evidence, deployment confirmation/audit behavior, and added IAM policies.
+Start with the [PowerShell quick start](docs/quick-start.md) for setup and command examples.
+See the [CLI workflow diagrams](docs/cli-workflow.md) for the identity gate,
+read-only commands, and controlled retry path.
 
 ## Setup
 

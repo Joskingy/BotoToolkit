@@ -154,23 +154,19 @@ def test_selected_missing_profile_fails_locally_without_aws(local_config):
 
 
 @pytest.mark.parametrize("command", AWS_COMMANDS)
-@pytest.mark.parametrize("omitted", ("--profile", "--expected-account", "--region", "all"))
-def test_existing_aws_commands_still_require_each_explicit_option(
-    monkeypatch, command, omitted, terminal_output
-):
+@pytest.mark.parametrize("omitted", ("--profile", "--expected-account", "--region"))
+def test_existing_aws_commands_still_require_each_explicit_option(monkeypatch, command, omitted):
     factory = Mock(side_effect=AssertionError("AWS called before options were validated"))
     monkeypatch.setattr("amplify_ops.aws.boto3.Session", factory)
     options = []
-    if omitted != "all":
-        for index in range(0, len(OPTIONS), 2):
-            if OPTIONS[index] != omitted:
-                options.extend(OPTIONS[index : index + 2])
+    for index in range(0, len(OPTIONS), 2):
+        if OPTIONS[index] != omitted:
+            options.extend(OPTIONS[index : index + 2])
 
     result = runner.invoke(app, options + [command] + AWS_COMMANDS[command])
 
     assert result.exit_code == 2, result.output
-    assert ("--profile" if omitted == "all" else omitted) in Text.from_ansi(result.output).plain
-    assert ("\x1b[" in result.output) is terminal_output
+    assert omitted in Text.from_ansi(result.output).plain
     factory.assert_not_called()
 
 
@@ -194,9 +190,7 @@ def test_doctor_rejects_explicit_malformed_settings_before_local_checks(passing_
 
 
 @pytest.mark.parametrize("omitted", ("--profile", "--expected-account", "--region", "all"))
-def test_online_doctor_requires_all_explicit_settings_before_checks(
-    passing_checks, omitted, terminal_output
-):
+def test_online_doctor_requires_all_explicit_settings_before_checks(passing_checks, omitted):
     options = []
     if omitted != "all":
         for index in range(0, len(OPTIONS), 2):
@@ -207,19 +201,39 @@ def test_online_doctor_requires_all_explicit_settings_before_checks(
 
     assert result.exit_code == 2, result.output
     assert ("--profile" if omitted == "all" else omitted) in Text.from_ansi(result.output).plain
-    assert ("\x1b[" in result.output) is terminal_output
     passing_checks.assert_not_called()
 
 
-def test_online_doctor_rejects_multiple_regions_before_checks(passing_checks, terminal_output):
+def test_online_doctor_rejects_multiple_regions_before_checks(passing_checks):
     result = runner.invoke(
         app, OPTIONS + ["--region", OTHER_REGION, "doctor", "--online", "--format", "json"]
     )
 
     assert result.exit_code == 2, result.output
     assert "--region" in Text.from_ansi(result.output).plain
+    passing_checks.assert_not_called()
+
+
+@pytest.mark.parametrize("scenario", ("missing_options", "multiple_regions"))
+def test_cli_errors_remain_readable_with_or_without_color(
+    passing_checks, terminal_output, monkeypatch, scenario
+):
+    factory = Mock(side_effect=AssertionError("AWS called before options were validated"))
+    monkeypatch.setattr("amplify_ops.aws.boto3.Session", factory)
+    if scenario == "missing_options":
+        arguments = ["doctor", "--online"]
+        option = "--profile"
+    else:
+        arguments = OPTIONS + ["--region", OTHER_REGION, "doctor", "--online"]
+        option = "--region"
+
+    result = runner.invoke(app, arguments)
+
+    assert result.exit_code == 2, result.output
+    assert option in Text.from_ansi(result.output).plain
     assert ("\x1b[" in result.output) is terminal_output
     passing_checks.assert_not_called()
+    factory.assert_not_called()
 
 
 @pytest.mark.parametrize(

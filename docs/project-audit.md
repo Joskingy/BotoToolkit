@@ -2,19 +2,30 @@
 
 Reviewed 5 November 2026. Package version: 0.1.0.
 
-## Remediation prepared 6 November 2026
+## Current remediation status — 7 November 2026
 
-The security-hardening PR implements A1–A4: text-only publication checks for
-working/index/history content, case-insensitive private paths, OSV monitoring and
-weekly uv updates, and bounded GitHub subprocess output. A1 uses rejection of
-binary files rather than claiming to scan Word archives. Historical text diffs
-also prevent Git attributes from hiding text secrets. Regression evidence and
-exact checks are in the implementation report. These changes await review/merge.
+A1–A4 remediation is merged and promoted: text-only publication enforcement for
+working/index/history content, case-insensitive private paths, Python dependency
+advisory monitoring, and bounded GitHub subprocess output. Binary files are
+rejected rather than claiming to scan Word archives; historical text diffs also
+prevent Git attributes from hiding text secrets. Regression evidence is in the
+implementation report.
 
-A5 worktree cleanup remains separate: original uncommitted files are preserved
-unchanged. IAM review, hosted rule enforcement, broader coverage measurement,
-doctor, and other optional features remain follow-up work. The original findings
-and verification below describe the audit baseline, not the remediation result.
+Dependabot version-update configuration has since been removed. OSV monitoring
+runs weekly on Monday at 07:23 UTC, plus configured change/manual events. Review
+dependency updates manually monthly or before releases. Completed worktrees
+were retired with recovery backups; main, dev, and doctor work were preserved.
+
+Doctor now implements offline diagnostics and optional STS-only verification;
+its integration and reduced regression matrix are recorded in PR #21. Scanner/hook/login checks and service-permission probing
+are outside its initial scope. Broader IAM verification, coverage measurement,
+and the remaining reliability/usability proposals are follow-up work. The Word
+guide remains private and needs rendering/page inspection.
+
+The findings, delivery plan, and verification below describe the original audit
+baseline. They are retained as historical evidence, not a list of unresolved
+A1–A4 defects or a request to restore Dependabot. Current status above takes
+precedence over the original proposed features and delivery ordering.
 
 ## Assessment and scope
 
