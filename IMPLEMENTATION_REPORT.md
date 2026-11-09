@@ -1,5 +1,91 @@
 # amplify-ops implementation and testing report
 
+## Offline TUI prototype — 8 November 2026
+
+Implemented on `codex/tui-offline`, based on the existing `origin/dev` revision
+`732b12b`. The original main checkout's five pending documentation files were
+preserved; no existing worktree was switched, merged, reset or cleaned. This
+initial implementation remained local and uncommitted. The subsequent request
+authorizes committing, opening a PR into dev, running hosted checks and merging
+after they pass. Final publication results are recorded in the PR and private
+local verification report. Existing roadmap/history sections are retained below.
+
+### Changes
+
+- Added the staged TUI milestone to ROADMAP.md: offline prototype, gated live
+  read-only inventory, guided investigation/comparison, and deferred monitoring
+  and deployment interaction. Core milestones 1–7 remain complete.
+- Added `amplify-ops tui --demo`, with lazy loading of the optional interface,
+  a missing-extra installation message and interactive-terminal validation.
+  Live TUI operation is not implemented. Existing AWS option gates are retained.
+- Added `tui.py`: searchable app/branch table, keyboard navigation, detail panel,
+  fixed snapshot indicator, reset/quit shortcuts and a persistent offline banner.
+  Literal display removes terminal/control formatting from names; partial scans,
+  no branches and no deployments have distinct labels. Layout supports a minimum
+  tested size of 60 columns by 20 rows with scrollable details.
+- Added `tui_demo.py`: four fictional apps and six displayed rows, using existing
+  App, Branch and Deployment models. No AWS/configuration/profile reads, network
+  provider, external report loading, deployment or export operation is connected.
+- Added the optional `tui` extra and Textual to development dependencies so the
+  existing CI test jobs exercise it. Locked Textual 8.2.8 and its added dependencies;
+  existing locked package versions were retained. No extra CI workflow or job.
+- Added six focused tests for browsing/search/reset/quit, partial/empty results,
+  resizing, literal names, launch guards and optional installation behavior.
+  Existing tests were retained. Extended the package checker to verify base
+  installations without Textual and a headless optional-extra launch from a
+  rebuilt source distribution outside the checkout.
+- Added docs/tui.md and a README entry with installation, keys and scope.
+
+### Verification steps and results
+
+Run from the feature worktree with Python 3.15.0 and uv 0.13.4. Dependencies and
+the checksum-verified scanner were available locally for the offline checks.
+Temporary test directories were separate from all recovery backups.
+
+1. `uv sync --locked` and `uv lock --check`: passed; 26 resolved packages.
+2. `uv run --locked pytest tests/test_tui.py -q`: six passed in 2.73 seconds.
+   After adjusting the small-terminal layout, repeated the six tests: passed
+   in 2.38 seconds, including assertions that the footer/details remain on screen.
+3. `uv run --locked pytest -q --tb=short` with a fresh private `--basetemp`:
+   **417 passed in 142.26 seconds**. The original 411 cases remain present.
+4. `uv run --locked ruff check .`: passed.
+5. `uv run --locked ruff format --check .`: passed, 61 files formatted.
+6. `uv run --locked python scripts/check_distribution.py`: passed. Wheel and
+   source installation both support CLI help/doctor without Textual; `tui --demo`
+   explains the missing extra. The rebuilt source package with the locked extra
+   starts headlessly, displays six rows and quits, with AWS session creation blocked.
+7. `uv run --locked python scripts/security_check.py --history --require-history`:
+   passed, including scanner canaries. No scanner exclusions were added.
+8. `.venv/Scripts/python.exe scripts/dependency_audit.py`: queried OSV with public
+   package names/versions; **25 locked PyPI versions, zero advisory matches**.
+9. Windows terminal smoke: `amplify-ops --profile brewmaster tui --demo` launched;
+   `/failed` plus Enter filtered to the failed branch; Ctrl+Q exited with code 0
+   and restored the terminal. Only synthetic data was displayed.
+10. `git diff --check`: passed. SHA-256 checks of the five original main pending
+    files matched the before-work snapshot; no original pending content was changed.
+
+Initial failures were investigated rather than suppressed: Windows asyncio uses
+a loopback socketpair for its wakeup pipe, which the network guard initially
+blocked. A module-scoped test runner now initializes that pipe before the
+function-scoped guards. All application execution remains under the original
+network guards and a new AWS-session prohibition. Restricted process execution
+also prevented the wakeup pipe from starting, so successful tests ran with local
+event-loop support. Three line-length findings were corrected before final lint.
+
+### Remaining work and limits
+
+- Hosted Linux/Windows checks are the required publication gate; their final
+  results are recorded in the PR after this implementation record was prepared.
+- User feedback on the prototype's layout and workflow is still needed; the
+  terminal smoke and headless tests do not establish every terminal's behavior.
+- Data is fixed and fictional; reset is not AWS refresh. Setup diagnostics,
+  investigation/comparison, live reads and deployment are not TUI screens yet.
+- Before live inventory: complete branch/documentation reconciliation and IAM
+  verification, then implement scan budgets, worker/cancellation behavior,
+  explicit account verification and stale/partial-result handling.
+- No AWS calls or resource changes were performed. PR publication and merge
+  are covered by the subsequent user authorization and PR verification record.
+
 Completed core roadmap milestones 1–7 on October 16, 2026 (America/Mexico_City).
 Generated AWS timestamps are UTC and therefore show October 17 for later checks.
 This public report omits the local workspace path and live identifiers.
