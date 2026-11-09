@@ -1,6 +1,8 @@
 """CLI options, identity gate, output streams, and exit codes."""
 
+import importlib.util
 import re
+import sys
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from enum import StrEnum
@@ -88,6 +90,27 @@ def require_aws_options(profile: str | None, account: str | None, regions: list[
     ):
         if not value:
             raise typer.BadParameter("Provide this explicit AWS option.", param_hint=option)
+
+
+@app.command()
+def tui(
+    demo: Annotated[bool, typer.Option(help="Browse built-in synthetic data offline.")] = False,
+) -> None:
+    """Open the optional terminal browser. Only offline --demo is implemented."""
+    if not demo:
+        raise typer.BadParameter("Use --demo; live TUI access is not implemented.")
+    if importlib.util.find_spec("textual") is None:
+        diagnostics.print(
+            "Install the TUI extra from your trusted checkout: uv sync --locked --extra tui."
+        )
+        raise typer.Exit(1)
+    if not sys.stdin.isatty() or not sys.stdout.isatty():
+        diagnostics.print("TUI requires an interactive terminal. Use existing table/JSON commands.")
+        raise typer.Exit(2)
+    # Lazy import keeps normal CLI commands independent of the optional UI dependency.
+    from amplify_ops.tui import DemoBrowser
+
+    DemoBrowser().run()
 
 
 @app.command()

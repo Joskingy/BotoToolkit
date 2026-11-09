@@ -1,5 +1,25 @@
 # amplify-ops roadmap
 
+## Terminal interface milestone — 8 November 2026
+
+Core milestones 1–7 and doctor are implemented. The TUI is an optional usability
+extension inspired by Updo's searchable terminal views, implemented in Python
+with Textual. Existing command-line and JSON interfaces remain supported.
+
+| Stage | Status | Scope and completion gate |
+| --- | --- | --- |
+| Offline prototype | Implemented on the feature branch; verification recorded in IMPLEMENTATION_REPORT.md | Synthetic apps/branches, search, keyboard navigation, detail panel, clear offline label, partial/empty states, no AWS calls. See docs/tui.md. |
+| Live read-only inventory | Planned | Finish pending branch/documentation reconciliation and least-privilege verification; add explicit identity gate, total scan/page/time budgets, background worker, cancellation, manual refresh and stale-result handling. |
+| Guided investigation and comparison | Planned after inventory validation | Reuse existing collectors and redaction; opt-in bounded log inspection; focused user-journey tests. |
+| Continuous monitoring and charts | Optional, deferred | Demonstrate demand and define meaningful history, polling budgets and storage before implementation. |
+| Interactive deployment | Deferred; separate safety review | Preserve reviewed plan confirmation, fresh preflight and audit claims; resolve coordination/recovery requirements before expanding write interactions. |
+
+Prototype acceptance: no profile/credential reads or network access; optional
+runtime dependency with a clear installation message; existing CLI behavior and
+AWS guards retained; headless navigation and layout checks pass on supported CI
+platforms. Local verification and hosted/manual limitations are recorded in the
+implementation report. The prototype is not a live AWS console.
+
 ## Doctor integration and test simplification — 7 November 2026
 
 Core milestones 1–7 remain complete. PR #20 is merged into dev, and this doctor
