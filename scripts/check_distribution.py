@@ -91,6 +91,18 @@ def smoke_install(wheel: Path, requirements: Path, target: Path, env: dict[str, 
     )
     suffix = ".exe" if os.name == "nt" else ""
     run(str(binaries / f"amplify-ops{suffix}"), "--help", cwd=target.parent, env=env)
+    run(str(binaries / f"amplify-ops{suffix}"), "tui", "--help", cwd=target.parent, env=env)
+    # Base installs must remain usable without the optional terminal framework.
+    result = subprocess.run(
+        [str(binaries / f"amplify-ops{suffix}"), "tui", "--demo"],
+        cwd=target.parent,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert result.returncode == 1 and "Install the TUI extra" in result.stderr
+    assert not result.stdout
     # Exercise doctor outside any checkout, with no AWS options or repository tools.
     result = subprocess.run(
         [str(binaries / f"amplify-ops{suffix}"), "doctor", "--format", "json"],
@@ -162,6 +174,56 @@ def main() -> None:
         (rebuilt_wheel,) = rebuilt.glob("*.whl")
         inspect_archive(rebuilt_wheel)
         smoke_install(rebuilt_wheel, requirements, temporary / "source-env", env)
+        # Install the locked optional extra into the rebuilt source environment.
+        run(
+            "uv",
+            "export",
+            "--locked",
+            "--no-dev",
+            "--extra",
+            "tui",
+            "--no-emit-project",
+            "--no-header",
+            "--quiet",
+            "--output-file",
+            str(requirements),
+            cwd=ROOT,
+            env=env,
+        )
+        binaries = temporary / "source-env" / ("Scripts" if os.name == "nt" else "bin")
+        python = binaries / ("python.exe" if os.name == "nt" else "python")
+        run(
+            "uv",
+            "pip",
+            "install",
+            "--python",
+            str(python),
+            "--require-hashes",
+            "-r",
+            str(requirements),
+            cwd=temporary,
+            env=env,
+        )
+        run(
+            str(python),
+            "-I",
+            "-c",
+            "import asyncio\n"
+            "import boto3\n"
+            "from amplify_ops.tui import DemoBrowser\n"
+            "from textual.widgets import DataTable\n"
+            "def forbidden(*args, **kwargs):\n"
+            "    raise AssertionError('Demo must not create an AWS session')\n"
+            "boto3.Session = forbidden\n"
+            "async def smoke():\n"
+            "    app = DemoBrowser()\n"
+            "    async with app.run_test() as pilot:\n"
+            "        assert app.query_one(DataTable).row_count == 6\n"
+            "        await pilot.press('ctrl+q')\n"
+            "asyncio.run(smoke())\n",
+            cwd=temporary,
+            env=env,
+        )
     print("Wheel and source-distribution installation checks passed.")
 
 

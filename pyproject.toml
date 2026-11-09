@@ -17,8 +17,17 @@ dependencies = [
 bototoolkit = "bototoolkit:main"
 amplify-ops = "amplify_ops.cli:app"
 
+[project.optional-dependencies]
+tui = [
+    "textual>=8,<9",
+]
+
 [dependency-groups]
-dev = ["pytest>=8.4", "ruff>=0.14"]
+dev = [
+    "pytest>=8.4",
+    "ruff>=0.14",
+    "textual>=8,<9",
+]
 
 [tool.uv.build-backend]
 module-name = ["amplify_ops", "bototoolkit"]
