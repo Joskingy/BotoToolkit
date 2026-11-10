@@ -11,8 +11,6 @@ Milestones 4–7 add `api-keys`, `costs`, `stale`, `deploy-plan`, and `deploy`.
 All commands except **deploy** are read-only. Deploy submits an explicitly
 reviewed RETRY; no live writes were performed during implementation.
 
-The complete change report and step-by-step testing record are in
-[IMPLEMENTATION_REPORT.md](IMPLEMENTATION_REPORT.md).
 See [remaining command details](docs/remaining-commands.md) for AppSync, costs,
 stale evidence, deployment confirmation/audit behavior, and added IAM policies.
 Start with the [PowerShell quick start](docs/quick-start.md) for setup and command examples.
@@ -104,14 +102,8 @@ Doctor emits redacted check findings instead. Inventory JSON alone goes to stdou
 so it can be piped to other tools. `identity` also prints the account and ARN on
 stdout for interactive use. SDK debug/wire logging is never enabled.
 
-### Future CI mode (not implemented)
-
-A later explicitly selected `--auth-mode assumed-role` could use CI OIDC or a
-workload identity to assume a configured role without requiring a local profile.
-It must reject ambiguous profile/role combinations, keep expected-account and
-region arguments mandatory, and pass through the same STS identity gate before
-inventory. It must never be selected implicitly when a local profile fails.
-Milestone 1 has no CI authentication mode or role-assumption command.
+Only local profile authentication is implemented. CI workflows run offline tests
+and require no AWS credentials; assumed-role CI authentication is outside scope.
 
 ## Inventory semantics
 
@@ -407,10 +399,13 @@ $env:UV_CACHE_DIR = Join-Path $PWD '.uv/cache'
 New-Item -ItemType Directory -Force .uv/test-temp | Out-Null
 $env:TEMP = Join-Path $PWD '.uv/test-temp'
 $env:TMP = $env:TEMP
-uv run --locked pytest
+uv run --locked pytest --basetemp .uv/p
 uv run --locked ruff check .
 uv run --locked ruff format --check .
 ```
+
+The short test directory avoids Windows path-length failures in nested Git fixtures.
+Pytest clears that directory before a run; keep it dedicated to test scratch files.
 
 Tests use botocore Stubber with literal fake credentials and a guard that fails
 on SDK transport calls. They need no AWS account or real credentials. They cover
@@ -441,5 +436,3 @@ outside this implementation.
 See [the security guide](docs/security.md) for local commit/push checks, the
 required GitHub scan, repository protection setup, and GitHub troubleshooting.
 Keep live reports, plans, logs, identifiers, and local settings outside Git.
-The [implementation report](IMPLEMENTATION_REPORT.md) retains sanitized testing
-evidence; it deliberately omits account/resource identities and private results.

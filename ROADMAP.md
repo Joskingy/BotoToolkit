@@ -1,307 +1,39 @@
-# amplify-ops roadmap
+# amplify-ops scope and status
 
-## Terminal interface milestone — 8 November 2026
+Core milestones 1–7 are implemented. Reporting and `deploy-plan` read AWS;
+`deploy` is the sole opt-in write path and supports completed-job RETRY only.
 
-Core milestones 1–7 and doctor are implemented. The TUI is an optional usability
-extension inspired by Updo's searchable terminal views, implemented in Python
-with Textual. Existing command-line and JSON interfaces remain supported.
+| Milestone | Implemented behavior |
+| --- | --- |
+| 1. Inventory | Apps, branches, and latest job summaries across explicit regions. |
+| 2. Investigation | Latest failed or selected job, step evidence, opt-in bounded log signatures. |
+| 3. Comparison | Redacted branch configuration and environment inheritance. |
+| 4. AppSync keys | Expiry/status and opaque fingerprints; no raw keys or rotation. |
+| 5. Costs | Exact account/service totals and optional tag estimates; no invented per-resource allocation. |
+| 6. Stale environments | Conservative AWS/GitHub evidence; no automatic cleanup. |
+| 7. Controlled retry | Expiring reviewed plans, exact confirmation, fresh preflight, persisted local claim, one submission attempt. |
 
-| Stage | Status | Scope and completion gate |
-| --- | --- | --- |
-| Offline prototype | Implemented on the feature branch; verification recorded in IMPLEMENTATION_REPORT.md | Synthetic apps/branches, search, keyboard navigation, detail panel, clear offline label, partial/empty states, no AWS calls. See docs/tui.md. |
-| Live read-only inventory | Planned | Finish pending branch/documentation reconciliation and least-privilege verification; add explicit identity gate, total scan/page/time budgets, background worker, cancellation, manual refresh and stale-result handling. |
-| Guided investigation and comparison | Planned after inventory validation | Reuse existing collectors and redaction; opt-in bounded log inspection; focused user-journey tests. |
-| Continuous monitoring and charts | Optional, deferred | Demonstrate demand and define meaningful history, polling budgets and storage before implementation. |
-| Interactive deployment | Deferred; separate safety review | Preserve reviewed plan confirmation, fresh preflight and audit claims; resolve coordination/recovery requirements before expanding write interactions. |
+Local `doctor` diagnostics and optional STS-only verification are implemented.
+The optional Textual TUI is an offline synthetic demo; see [the TUI guide](docs/tui.md).
+The `dev.ps1` helper supports worktree setup, checks, feature PRs, and promotion.
 
-Prototype acceptance: no profile/credential reads or network access; optional
-runtime dependency with a clear installation message; existing CLI behavior and
-AWS guards retained; headless navigation and layout checks pass on supported CI
-platforms. Local verification and hosted/manual limitations are recorded in the
-implementation report. The prototype is not a live AWS console.
+## Operating limits
 
-## Doctor integration and test simplification — 7 November 2026
+- All AWS commands require an explicit local profile, independently expected
+  account, and selected region. This project uses `brewmaster`.
+- Unread or incomplete evidence is unknown, never proof of absence or no cost.
+- Reports withhold secrets and raw logs, but account/resource metadata remains
+  private. See [security guidance](docs/security.md).
+- Local audit claims are not distributed idempotency. Use one controlled operator
+  and a stable private audit directory; inspect AWS after uncertain submissions.
+- Tests mock AWS, including StartJob. Live writes are not part of implementation
+  verification. Hosted checks and repository enforcement require separate review.
 
-Core milestones 1–7 remain complete. PR #20 is merged into dev, and this doctor
-branch incorporates that dev revision while preserving the documentation and
-historical implementation records from both branches. Doctor provides offline
-setup diagnostics and opted-in STS-only verification; service IAM, scanner/hook
-checks, repair operations, and distributed deployment coordination remain outside
-its initial scope. Promotion from dev into main remains a separate reviewed step.
+Live TUI access, continuous monitoring, broader backend discovery, CI AWS
+authentication, shared deployment coordination, and additional write actions are
+outside the current implementation. They require demonstrated need and explicit
+approval before development.
 
-The reduced suite keeps 27 independent AWS command/option guards and four focused
-plain/colored error regressions. The full suite passes 411 cases, reduced from
-457, under CI-like terminal settings. Other identity, privacy, bounded-input, output,
-package, and test-isolation coverage remains unchanged. Earlier totals of 457
-and preparation-state statements below are historical and superseded here.
-
-## Documentation integration baseline — 7 November 2026
-
-Core milestones 1–7 remain complete. Security remediation and Python dependency
-monitoring were promoted in PR #10. PRs #16 and #17 were merged, their changes
-were promoted in PR #18, and PR #19 merged main back into dev. No synchronization
-PR remains pending for that promotion. Main and dev currently have identical
-committed file trees; dev also contains the synchronization merge ancestry.
-
-Dependabot version-update configuration is removed. OSV runs weekly on Monday
-at 07:23 UTC and on configured PR, main-push, merge-queue, and manual events.
-Tests and secret scanning remain enabled. Dependency updates are reviewed
-manually monthly or before releases. Existing required-check settings were not
-changed or freshly audited for this documentation preparation.
-
-Quick-start and workflow documentation are prepared separately from the doctor
-feature. Doctor is local feature work and is not part of this documentation PR.
-Its initial scope excludes scanner, Git-hook, GitHub-login, and service-permission
-checks. Broader IAM review, shareable reports, scan budgets, and shared deployment
-coordination remain follow-up work. The Word guide is a private draft awaiting
-rendering and page inspection.
-
-The entries below are historical records of their preparation dates. Statements
-about pending promotions, retained worktrees, or prior dependency schedules in
-those records are superseded by this current status; they are not open tasks.
-
-## Historical: Completed worktree cleanup — 6 November 2026
-
-Four merged worktrees were retired after full local backup and hash verification.
-The five requested main/dev/doctor/PR worktrees remain untouched. PR #16 is merged;
-PR #17 is updated against the new dev and will merge after fresh required checks.
-Core milestones 1–7 remain complete. Promotion to main is separate from this
-cleanup; local dev/doctor updates are deferred to preserve the requested state.
-
-## Historical: CI noise reduction prepared 6 November 2026
-
-Removed Dependabot version-update configuration. All six required PR checks,
-both test platforms, and secret scanning remain. Push-triggered verification is
-limited to main; OSV monitoring runs weekly on Monday at 07:23 UTC, plus PRs,
-main pushes, merge queue requests, and manual runs. Dependencies are reviewed
-manually monthly or before releases. These changes await review and promotion
-to main; core milestones 1–7 remain complete. Historical entries below describe
-the configuration at their original implementation dates.
-
-## Historical: Audit security remediation prepared 6 November 2026
-
-Implemented text-only publication enforcement across working files, index, and
-reachable history; case-insensitive private paths; bounded GitHub CLI capture;
-and Python dependency advisory monitoring with weekly uv update PRs. Core
-milestones 1–7 remain complete. See docs/project-audit.md for A1–A4 remediation
-and docs/dependency-monitoring.md for activation and required-check configuration.
-Original worktree edits are preserved. Review/merge and GitHub configuration remain
-pending; IAM changes, doctor, cleanup, and expanded AWS writes are not included.
-
-Core milestones 1–7 are implemented. Inventory/report commands and deploy-plan
-are read-only; deploy is an explicit, separately permissioned RETRY write path.
-See IMPLEMENTATION_REPORT.md for all changes and step-by-step verification,
-including the incomplete GitHub live check and the absence of live writes.
-Maintain the explicit identity gate, field allowlists, stderr/stdout separation,
-and mocked verification as these features are designed incrementally.
-
-## 2. Failed deployment investigation — implemented
-
-`investigate --app-id ... --branch ...` selects the latest failed job by paginated
-metadata; `--job-id` selects an exact job without listing. Reports show step
-status/timing evidence and optional `--inspect-logs` signature findings.
-Only `GetJob` was added to the SDK read surface. Output includes no raw log text,
-free-form status reasons, or signed URLs. Bounded HTTPS log GETs export only
-fixed categories/suggestions and line numbers. Limits and errors preserve
-metadata with partial-result semantics. See README for exact limits and IAM.
-
-Stubber regressions exercise selection, identity gating, safe output, and
-unavailable reads. Mocked HTTP tests exercise URL rejection, redirects,
-download limits, signature recognition, and timeouts. A live read-only run investigated
-historical failed dev job 2 and found BUILD failure and TypeScript/command-failure
-signatures. Later milestones were not built as part of this increment.
-
-## 3. dev/main configuration comparison — implemented
-
-`compare --app-id ... --source dev --target main` reads one app and two branches
-after verifying identity. Environment comparisons resolve app defaults plus
-branch overrides and distinguish equality, origin differences, missing values,
-empty overrides, and unread configuration. Allowlisted branch settings are
-compared as stored; app-wide settings are shared context, not assumed effective
-settings. Raw values, hashes, lengths, and basic-auth contents are never exported.
-
-GetApp and GetBranch are the only new SDK read operations. Table and JSON reports
-use the existing file/stream/partial-result conventions. Tests cover equal,
-missing, inherited, and changed values; failed reads, auth gating, and redaction.
-Live dev/main comparison completed with three differences in stage, framework
-presence, and backend. Repository build files/runtime secrets remain outside
-scope. See README for the exact allowlist, semantics, and IAM permissions.
-
-## 4. AppSync API-key expiration reporting — implemented
-
-`api-keys` paginates GraphQL APIs/keys in selected regions or reads explicit
-API IDs. It reports UTC expiry, expired/expiring/valid/unknown status, and opaque
-SHA-256 key fingerprints. Raw key IDs are credentials and never exported.
-API summaries distinguish empty key lists from unread lists. App associations
-are unknown or explicitly operator-supplied; no backend discovery is fabricated.
-Live read verification succeeded and identified one key in the warning window.
-Legacy/malformed metadata yields partial output. No rotation is implemented.
-
-## 5. Cost reporting — implemented
-
-`costs` requires explicit inclusive/exclusive dates and queries the verified
-linked account across billing regions. Service/currency totals use Decimal,
-UnblendedCost, and AWS estimated flags; credits/refunds are excluded. Optional
-operator-selected tag filters yield tag-attributed estimates and an outside-tag
-remainder. Direct resource allocation is unsupported, and shared versus
-unattributed/unrelated costs cannot be separated; no percentages are invented.
-The SDK paginator engine handles CE's documented token because no CE paginator
-ships with the installed SDK. September 2026 live account reporting succeeded.
-
-## 6. Stale environment reports using AWS and GitHub evidence — implemented
-
-`stale` verifies an explicit OWNER/REPO mapping against the app repository,
-combines branch/job activity with paginated GitHub branches/open same-repository
-PRs, and reports timestamps/evidence/confidence. main/dev and production stages
-are protected. Only old feature branches absent from completely read GitHub
-evidence, without active jobs/open PRs, become medium-confidence review candidates.
-Backend association presence is noted; individual backend resource usage is
-not assessed. GitHub failures/limits produce unknown evidence and partial reports.
-AWS live reads worked; GitHub live evidence needs local gh sign-in. Mocked
-GitHub happy/failure paths passed. No cleanup commands were added.
-
-## 7. Controlled deployment commands — implemented for completed-job retries
-
-`deploy-plan` performs read-only preflight for a selected completed job and writes
-a reviewable, checksummed plan expiring after 15 minutes. `deploy` requires its
-exact plan ID, matching verified account/region, production confirmation where
-applicable, fresh target/commit checks, no active jobs, and a persisted exclusive
-local audit claim. Only StartJob(RETRY) is supported, through a separate client
-with one total attempt and a separate write policy. It does not roll back or
-silently retry unknown outcomes. Local replay protection is not distributed
-idempotency. Plan creation was verified live; all writes were mocked only.
-New branch-head releases, uploads, deletion, and config mutation are outside
-this controlled-retry scope.
-
-## Optional extensions outside the completed core roadmap
-
-The original request explicitly deferred CI authentication; it remains design
-documentation only. Schema evolution, bounded concurrency, isolated-account
-integration testing, full backend resource discovery, and additional deployment
-actions are optional follow-on work, not silently enabled by these commands.
-
-## Publishing safeguards and GitHub follow-up — implemented locally
-
-GitHub reads now expose fixed actionable errors, explicit API/open-PR requests,
-and stricter malformed/duplicate evidence handling. Public documentation uses
-placeholders; tests use synthetic identities. A credential/private-metadata
-workflow and local commit/push hooks scan publishable files and Git history.
-See docs/security.md for setup, verified tests, and the repository settings to
-enable once a remote exists. Remote enforcement is not yet configured.
-
-## Deep test audit — completed locally
-
-Read-only module/caller and test-coverage audits found no safe legacy removal.
-The original compatibility command remains supported. New regressions expose and
-fix incomplete log bodies, missing key identity, exact cost arithmetic and invalid
-amount handling, production-branch mapping, plan-file validation, and historical
-private-artifact scanning. See docs/test-audit.md for evidence, checks, and limits.
-
-## Project-local CI skill trial — installed
-
-Installed GitHub Actions Templates under
-`.agents/skills/github-actions-templates/` for use in this project. The skill is
-available on a subsequent turn; no workflow was generated or enabled. Source
-revision and installation verification are recorded in IMPLEMENTATION_REPORT.md.
-
-## CI improvements — implemented locally
-
-Application CI now checks the lockfile, lint/format, the full Linux/Windows test
-matrix with a required working scanner, and clean wheel/source installation.
-Both workflows use verified SHA pins and PR-only cancellation. Quarterly action
-updates and user-selected ownership of CI/security controls are configured in
-repository files. See docs/ci.md for exact required checks and GitHub settings
-that need administrator configuration or verification. Remote enforcement and
-actual hosted Linux/Windows execution remain to be verified after pushing.
-
-## Branch and worktree adoption — planned
-
-Reviewed the current directory, Git state, hooks, CI, and local-state behavior.
-The step-by-step guide in docs/branching-and-worktrees.md covers preserving the
-pending changes, creating main/dev/feature worktrees, GitHub rules, release
-promotion, hotfix synchronization, and cleanup. No branch, remote, or repository
-setting was changed. Adoption and hosted enforcement remain future work.
-
-## Branch and worktree adoption — configured with protected PR promotion
-
-The pending audit, CI, skill, and guide changes are preserved in a bootstrap
-commit. The original checkout is on main; sibling dev and bootstrap worktrees
-have separate Python environments and checksum-verified scanners. Dependabot
-version updates are routed to dev in the bootstrap branch. Active GitHub rules
-require pull requests and all six checks on main and dev, block force pushes
-and deletion, and permit merge commits only. Independent approval remains
-optional until another trusted reviewer is available. Promotion uses those
-protected pull requests; see IMPLEMENTATION_REPORT.md and GitHub PR history.
-
-
-## Developer workflow automation — implemented locally
-
-Added dev.ps1 and scripts/dev.py with start, setup, check, pr, and promote
-commands. Features start from fetched origin/dev in isolated sibling worktrees.
-The helper initializes locked environments/hooks/scanners, runs local checks,
-and opens explicit feature-to-dev or dev-to-main PRs. Meaningful regression
-tests use disposable Git repositories and mocked GitHub calls. Review, commits,
-merges, tags, and cleanup remain explicit. Merge the helper into dev before
-using start for new features; see docs/developer-helper.md and the latest
-verification record in IMPLEMENTATION_REPORT.md.
-
-## Historical: Security release and branch synchronization — 6 November 2026
-
-PR #10 promoted the security fixes and dependency monitoring into main with a
-merge commit after all six required checks passed. The python-vulnerabilities
-check is required on main and dev. Core milestones 1–7 remain complete.
-The follow-up synchronization branch includes the promotion commit and is
-prepared for a PR into dev. Pending main/doctor work and historical worktrees
-remain preserved; synchronization merge approval is still outstanding.
-
-## Security and usability review dated 5 November 2026
-
-Audit and prioritized follow-on plan: [project audit](docs/project-audit.md).
-Core milestones 1–7 remain complete. No new runtime feature is implemented by
-this review. Priorities are binary-document scanning and case-insensitive private
-paths, IAM/GitHub enforcement verification, Python dependency monitoring, and a
-safe doctor command. Later work covers shareable reports, bounded scans, and
-shared deployment coordination. Acceptance criteria and nice-to-have features
-are in the audit; coordinate doctor work with the existing feature worktree.
-
-The concise command guide is [quick start](docs/quick-start.md). A Word copy is
-stored locally in ignored reports storage. Its contents and commands were checked;
-visual rendering remains blocked by the unavailable document renderer.
-
-## Historical: Security promotion status — 6 November 2026
-
-Security remediation and Python dependency monitoring are merged into dev.
-The active main/dev rule now requires python-vulnerabilities alongside the five
-existing checks. Promotion PR #10 has passed all six required checks and awaits
-explicit approval before merging. Main and dev match their remote branches; feature/doctor includes
-current dev with its pending work preserved. Historical merged worktrees remain
-intact. Core milestones 1–7 remain complete; see the implementation report for
-the preservation and verification record.
-
-## Doctor review status — 7 November 2026
-
-Core milestones 1–7 remain complete. This feature is based on synchronized dev
-after PR #19. Security changes and the Dependabot removal/weekly OSV schedule
-have already been promoted; earlier pending-promotion entries below are history.
-
-Doctor and stronger test isolation are prepared for a PR into dev without merging.
-The initial doctor scope excludes scanner, hook, GitHub-login, and service IAM
-checks. Shared deployment coordination and broader diagnostics remain optional
-follow-ups. Plain and colored CLI error assertions now cover the CI
-terminal difference; the expanded offline suite passes 457 tests. Offline checks and mocked online behavior are validated separately
-from hosted Linux/Windows CI and live AWS verification.
-
-## Doctor and follow-up test audit - implemented locally
-
-Added offline setup diagnostics for Python, installed package metadata, explicit
-local AWS profile/selection checks, and optional offline repository lockfile and
-dependency validation. Online mode opts in to the existing STS account gate
-only. Table and versioned JSON reports export fixed findings and suggested fixes,
-without identities, paths, credentials, or raw errors. All command help now works
-without AWS settings; live commands retain their explicit option gates.
-
-The audit reproduced and fixed inherited AWS/Git configuration affecting tests,
-strengthened network isolation, and retained active compatibility and security
-coverage. No legacy removal was justified. See docs/doctor.md and the latest
-IMPLEMENTATION_REPORT.md section for behavior, evidence, exact checks, and
-remaining rollout limits.
+Use [README](README.md) for setup and commands, [additional command details](docs/remaining-commands.md)
+for costs/stale/retry semantics and IAM, and [CONTRIBUTING](CONTRIBUTING.md) for development.
+Historical audits and implementation records remain available in Git history.
