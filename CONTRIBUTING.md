@@ -112,26 +112,6 @@ Retain them until module size or dependency boundaries justify a split.
 | .gitleaks.toml | Versioned scanner policy; keep in Git |
 | reports/, private/, .local/, .amplify-ops/ | Ignored operational outputs and local state |
 
-Recommended next organizational changes, when useful:
-
-- Shorten README into a product overview and quick start, moving its longer
-  command reference into docs. Keep CONTRIBUTING focused on development.
-- Move historical implementation records into docs/history once links are
-  updated. Keep ROADMAP near the root if it is actively maintained.
-- If CLI dispatch grows difficult to navigate, split command groups into an
-  amplify_ops/commands package while retaining a small cli entry point.
-- If more providers are added, group AWS/GitHub adapters in an integrations
-  package. Avoid creating many single-file subpackages before they are needed.
-- Review whether bototoolkit remains a supported interface before deprecating
-  its package and entry point. Preserve it until that decision is explicit.
-- The current blanket *.json exclusion is intentionally conservative. If
-  public schemas or fixtures become necessary, review narrowly scoped allowlists
-  in both .gitignore and the scanner's private-artifact policy together.
-
-These are proposed structural changes, not a file relocation performed during
-this onboarding update. Live reports remain local; no private files are moved
-into public documentation.
-
 ## Why keep the Gitleaks configuration?
 
 .gitleaks.toml is scanner configuration, not a credential file or a runtime

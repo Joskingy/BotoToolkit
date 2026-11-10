@@ -56,7 +56,7 @@ staging the first commit, preserve the executable bits for other clones with
 `git add --chmod=+x .githooks/pre-commit .githooks/pre-push`. New clones must
 install the scanner and configure the hook path locally; Git does not copy
 repository-local configuration when cloning. Review any existing hook path
-before replacing it. This checkout had no custom hooks and now uses `.githooks`.
+before replacing it.
 
 The installer downloads Gitleaks 8.24.3 into ignored `.uv/security-tools`, verifies
 the archive against a pinned SHA-256 digest, and extracts only the executable.
@@ -118,7 +118,7 @@ private repository name, image, or encoded/encrypted secret. Review remains
 necessary; account/app identifiers are private metadata here even though they
 are not authentication credentials.
 
-## GitHub workflow and enforcement after repository creation
+## GitHub workflow and enforcement
 
 `.github/workflows/sensitive-information.yml` runs on pushes to main, all pull
 requests, merge_group, and manual dispatch. It checks out full history, installs the
@@ -128,7 +128,7 @@ checkout credentials, no application secrets, no AWS credentials, and no
 pull_request_target event. It runs for all file changes, including docs-only PRs.
 Gitleaks CLI needs no organization action-license secret in this setup.
 
-After creating your intended repository and uploading the sanitized source:
+Verify these settings in the intended repository:
 
 1. Let **Sensitive information / sensitive-information** run once successfully.
 2. In repository Settings, create an active branch ruleset for main (and dev if
@@ -165,66 +165,6 @@ If a real credential ever reaches Git history, revoke/rotate it and remove it
 from history before publication. Deleting it from the current file is insufficient.
 No history rewrite, token rotation, remote creation, or push is performed by the
 scanner. Do not add a blanket allowlist to make a failing scan green.
-
-## Changes and step-by-step validation
-
-This update replaces real account/resource/repository identifiers in README,
-command documentation, project instructions, and the historical implementation
-report. Test accounts are synthetic. The package author email and personal
-workspace path were removed. Private operator directories, JSONL, and logs are
-ignored. Live report files remain local and unchanged.
-
-GitHub request/error handling and malformed-response tests were expanded. The
-workflow, Gitleaks configuration, verified installer, safe-output scan runner,
-commit/push hooks, and real-scanner integration tests were added. No runtime
-dependency was added to amplify-ops.
-
-Verification results are recorded after executing the following checks:
-
-```powershell
-uv run --locked pytest -q --tb=short
-uv run --locked ruff check .
-uv run --locked ruff format --check .
-uv lock --check --offline
-uv run --locked python scripts/security_check.py --history
-git config --local --get core.hooksPath
-```
-
-The scanner tests use disposable Git repositories and synthetic canaries. They
-cover clean placeholders, fixture-only exceptions, staged-versus-working-copy
-differences, deleted historical credentials, forced private artifacts, ignored
-local reports, disabled inline bypasses, missing tools/history, and runner-Python
-syntax compatibility. GitHub tests mock requests; no live AWS calls are needed.
-
-Executed results for this update:
-
-1. Downloaded and SHA-256-verified the pinned Windows scanner; exercised the
-   repository installer successfully. No matching contents were printed.
-2. Ran targeted GitHub/scanner tests: **37 passed**. An initial staged-index
-   parsing bug was corrected before this passing run.
-3. Ran the complete regression suite: **137 passed**, with the real scanner
-   installed (no scanner tests skipped). All AWS operations were stubbed.
-4. Ruff lint and format checks passed; the lockfile check resolved the existing
-   21-package environment offline. No runtime dependency was added.
-5. Validated the workflow using checksum-verified actionlint 1.7.12: passed.
-   Embedded shell/Python linters were disabled; the standalone Python scripts
-   passed Ruff and a Python 3.12 syntax compatibility test separately.
-6. Scanned all publishable working files: passed. Independently searched for the
-   previously exposed identifiers: none remained in publishable files. The
-   repository has no commits yet, so real project history is empty; history
-   rejection was verified in disposable repositories instead.
-7. Enabled `.githooks` locally and invoked both hooks through `git hook run`:
-   passed. Git for Windows' shell required execution outside the restricted
-   sandbox; no repository commit or remote push was performed.
-8. Created a temporary nonfunctional account-ID canary and invoked the actual
-   pre-push hook: it rejected publication with exit 1 and printed only the
-   location/rule. The canary was removed afterward.
-
-Remote Actions execution, required-check enforcement, and GitHub push protection
-remain unverified until a repository exists and its settings are configured.
-
-The later [deep test audit](test-audit.md) includes current regression results,
-installer coverage, historical artifact tests, and preserved compatibility paths.
 
 ## References
 

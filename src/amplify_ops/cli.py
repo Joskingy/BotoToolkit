@@ -184,12 +184,7 @@ def doctor(
     else:
         render_doctor(report, Console(markup=False, highlight=False))
     if output is not None:
-        try:
-            with output.open("x", encoding="utf-8", newline="\n") as handle:
-                handle.write(document)
-        except OSError:
-            diagnostics.print("Cannot write JSON output; check the path and use a new filename.")
-            raise typer.Exit(1) from None
+        write_json_output(output, document)
     if any(check.status == "fail" for check in report.checks):
         raise typer.Exit(1)
 
@@ -235,6 +230,16 @@ def inventory(
     emit_report(report, format, output)
 
 
+def write_json_output(output: Path, document: str) -> None:
+    try:
+        # Exclusive creation prevents accidental destruction of existing files.
+        with output.open("x", encoding="utf-8", newline="\n") as handle:
+            handle.write(document)
+    except OSError:
+        diagnostics.print("Cannot write JSON output; check the path and use a new filename.")
+        raise typer.Exit(1) from None
+
+
 def emit_report(
     report: Inventory | Investigation | Comparison | Report,
     format: OutputFormat,
@@ -254,13 +259,7 @@ def emit_report(
         else:
             render_report(report, console)
     if output is not None:
-        try:
-            # Exclusive creation prevents accidental destruction of existing files.
-            with output.open("x", encoding="utf-8", newline="\n") as handle:
-                handle.write(document)
-        except OSError:
-            diagnostics.print("Cannot write JSON output; check the path and use a new filename.")
-            raise typer.Exit(1) from None
+        write_json_output(output, document)
         diagnostics.print("JSON report written.")
     for error in report.errors:
         location = "/".join(filter(None, [error.region, error.app_id, error.branch_name]))

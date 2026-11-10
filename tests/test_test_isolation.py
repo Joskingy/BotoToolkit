@@ -4,6 +4,7 @@ import os
 import socket
 import subprocess
 import sys
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
 import boto3
@@ -91,6 +92,7 @@ def test_host_configuration_cannot_break_stubs_or_activate_providers(tmp_path, c
         "tests/test_test_isolation.py::test_default_sdk_session_has_no_external_credentials",
         "tests/test_test_isolation.py::test_disposable_git_commits_ignore_external_signing",
     ]
+    report_path = tmp_path / "probe-results.xml"
     result = subprocess.run(
         [
             sys.executable,
@@ -98,6 +100,8 @@ def test_host_configuration_cannot_break_stubs_or_activate_providers(tmp_path, c
             "pytest",
             "-q",
             *probes,
+            "--junitxml",
+            str(report_path),
             "--basetemp",
             str(tmp_path / "nested-pytest"),
         ],
@@ -109,5 +113,7 @@ def test_host_configuration_cannot_break_stubs_or_activate_providers(tmp_path, c
         timeout=60,
     )
     assert result.returncode == 0, result.stdout + result.stderr
-    assert "4 passed" in result.stdout
+    cases = ET.parse(report_path).findall(".//testcase")
+    assert {case.get("name") for case in cases} == {probe.split("::")[-1] for probe in probes}
+    assert all(len(case) == 0 for case in cases)
     assert not marker.exists(), "The developer's credential_process must never run"

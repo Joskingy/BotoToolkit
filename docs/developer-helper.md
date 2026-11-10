@@ -36,10 +36,6 @@ missing, and scans publishable files plus reachable Git history. Existing custom
 hooks are preserved and reported for manual reconciliation. Setup can be rerun.
 It needs network access for missing Python/packages/scanner downloads.
 
-The helper must first be merged into `dev` before `start` can create worktrees
-that contain it. Update the checkout you launch from after the helper is merged;
-until then, try `setup` and `check` in the implementation feature worktree.
-
 ## 1. Create a feature
 
 From a clean checkout containing the helper:
@@ -138,7 +134,7 @@ main back into dev first. The command does not claim to test a different local
 checkout: the required GitHub checks validate the actual promotion PR.
 
 Review and merge on GitHub. Keep dev. Follow the
-[branch guide](branching-and-worktrees.md#9-promote-a-release-and-synchronize-the-branches)
+[branch guide](branching-and-worktrees.md#promote-and-synchronize)
 for release tags, main-to-dev synchronization, and retiring completed worktrees.
 The synchronization branch can use `start sync-main-to-dev --prefix codex`,
 then `git merge origin/main` and `pr` from its worktree.
