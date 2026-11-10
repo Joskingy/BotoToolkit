@@ -135,34 +135,10 @@ the reviewed branch. Afterwards, inspect the returned job with `investigate
 If submission is uncertain, inspect AWS job history before any further action.
 Never retry automatically, remove a claim, or regenerate a plan simply to bypass it.
 
-## 6 Develop a feature
+For contributor setup, worktrees, checks, and PRs, use [CONTRIBUTING](../CONTRIBUTING.md)
+and the [developer helper](developer-helper.md).
 
-From a clean checkout with the helper and remote dev available:
-
-```powershell
-.\dev.ps1 start improve-help
-Set-Location ..\BotoToolkit-feature-improve-help
-# Edit source and tests in this new folder.
-.\dev.ps1 check
-git --no-pager diff
-git add PATH_TO_CHANGED_FILE
-git --no-pager diff --cached
-git commit -m "feat: describe the change"
-.\dev.ps1 pr --title "Describe the change"
-```
-
-Use the folder printed by `start` if your clone has another name. Repeat `git add`
-only for intended files. `check` runs setup/security, lock, tests, lint/format,
-package checks, and whitespace checks. `pr` reruns checks, pushes, and opens/reuses
-a PR into dev; Git and GitHub CLI authentication must be configured.
-
-If dev advanced, run `git fetch origin`, then `git merge origin/dev` in the feature
-worktree, resolve conflicts, commit, and rerun checks. After the feature PR is
-reviewed and merged into dev, run `.\dev.ps1 promote` from a clean helper checkout
-to open dev-to-main review. Neither command merges. Use reviewed merge commits;
-then synchronize main back into dev through a PR before the next promotion.
-
-## 7 Interpret failures
+## 6 Interpret failures
 
 | Exit | Meaning | Next action |
 | --- | --- | --- |

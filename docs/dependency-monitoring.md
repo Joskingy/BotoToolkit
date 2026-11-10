@@ -44,9 +44,8 @@ Use GitHub notification settings to receive failed scheduled-run alerts.
    existing five checks, once its successful PR run is visible.
 2. Dependabot alerts and automatic security updates remain disabled by the current
    repository policy. OSV monitoring is independent of those settings.
-3. Promote the cleanup to main to activate the weekly schedule and remove the
-   default-branch Dependabot configuration. Until then the previous automation
-   can still run. Confirm a scheduled or manual OSV run succeeds.
+3. Confirm the default branch contains the weekly OSV workflow and no Dependabot
+   version-update configuration. Verify a scheduled or manual OSV run succeeds.
 4. Require independent review for workflow, auditor, lockfile, and policy changes;
    a PR must not weaken its own checks. Existing CODEOWNERS assignment is retained.
 

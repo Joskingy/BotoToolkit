@@ -9,10 +9,9 @@ from conftest import (
     ACCOUNT,
     NOW,
     REGION,
-    app_response,
-    branch_response,
     identity_response,
     job_response,
+    preflight,
 )
 from typer.testing import CliRunner
 
@@ -35,35 +34,6 @@ OPTIONS = ["--profile", "brewmaster", "--expected-account", ACCOUNT, "--region",
 def connect(stubs):
     identity_response(stubs)
     return AwsAccess.connect("brewmaster", ACCOUNT, REGION)
-
-
-def preflight(
-    stubs,
-    branch="dev",
-    stage="DEVELOPMENT",
-    update=NOW,
-    commit="abc",
-    active=False,
-    source_status="FAILED",
-):
-    stub = stubs["amplify", REGION]
-    stub.add_response("get_app", {"app": app_response()}, {"appId": "d123"})
-    stub.add_response(
-        "get_branch",
-        {"branch": {**branch_response(branch), "stage": stage, "updateTime": update}},
-        {"appId": "d123", "branchName": branch},
-    )
-    stub.add_response(
-        "get_job",
-        {"job": {"summary": job_response("1", status=source_status, commitId=commit), "steps": []}},
-        {"appId": "d123", "branchName": branch, "jobId": "1"},
-    )
-    if source_status in {"FAILED", "SUCCEED", "CANCELLED"}:
-        stub.add_response(
-            "list_jobs",
-            {"jobSummaries": [job_response("3", status="RUNNING")] if active else []},
-            {"appId": "d123", "branchName": branch},
-        )
 
 
 def write_plan(path, plan, access):

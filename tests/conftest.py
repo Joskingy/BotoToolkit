@@ -140,6 +140,35 @@ def job_response(job_id="1", start=NOW, status="SUCCEED", **extra):
     }
 
 
+def preflight(
+    stubs,
+    branch="dev",
+    stage="DEVELOPMENT",
+    update=NOW,
+    commit="abc",
+    active=False,
+    source_status="FAILED",
+):
+    stub = stubs["amplify", REGION]
+    stub.add_response("get_app", {"app": app_response()}, {"appId": "d123"})
+    stub.add_response(
+        "get_branch",
+        {"branch": {**branch_response(branch), "stage": stage, "updateTime": update}},
+        {"appId": "d123", "branchName": branch},
+    )
+    stub.add_response(
+        "get_job",
+        {"job": {"summary": job_response("1", status=source_status, commitId=commit), "steps": []}},
+        {"appId": "d123", "branchName": branch, "jobId": "1"},
+    )
+    if source_status in {"FAILED", "SUCCEED", "CANCELLED"}:
+        stub.add_response(
+            "list_jobs",
+            {"jobSummaries": [job_response("3", status="RUNNING")] if active else []},
+            {"appId": "d123", "branchName": branch},
+        )
+
+
 @pytest.fixture
 def services(harness):
     factory, session, stubs = harness

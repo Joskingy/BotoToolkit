@@ -1,3 +1,67 @@
+
+# Engineering Principles
+
+## Core Philosophy
+- Prioritize simplicity, readability, correctness, and maintainability.
+- Build only what the current requirements justify (YAGNI).
+- Prefer boring, proven solutions over clever abstractions.
+- Follow KISS and DRY, but never sacrifice clarity to eliminate minor duplication.
+- Choose the smallest coherent change that solves the problem.
+- Do not build for hypothetical future requirements.
+
+## Architecture
+- Prefer a simple monolith unless multiple services are genuinely necessary.
+- Use the existing project structure, dependencies, and conventions.
+- Do not introduce design patterns, factories, service layers, interfaces, or generic frameworks without a concrete need.
+- Do not create abstractions for a single implementation or speculative reuse.
+- Keep functions and modules focused, with descriptive names.
+- Avoid excessive indirection, wrappers, and configuration.
+- Do not add dependencies, infrastructure, or new services without a clear justification and approval.
+
+## Scope Control
+- Implement only the explicitly requested feature or fix.
+- Do not expand the scope with speculative improvements.
+- Do not refactor unrelated code while implementing a feature.
+- Prefer modifying existing files rather than creating new ones.
+- If a change significantly increases complexity, stop and explain the simpler alternatives.
+- For straightforward tasks, implement directly without creating a planning document.
+
+## Testing
+- Write tests based on behavior and risk, not coverage targets or test counts.
+- Prefer a small number of meaningful tests covering critical paths, edge cases, and regressions.
+- Reuse existing tests whenever possible.
+- Avoid duplicate tests, trivial implementation-mirroring tests, and excessive mocking.
+- Do not introduce parametrized permutations without a distinct failure risk.
+- For small changes, typically add 0–3 focused tests; exceed this when justified by risk or behavior.
+- Never remove valuable regression or security tests merely to reduce the test count.
+- Run the relevant checks without repeatedly running the entire suite unnecessarily.
+
+## Documentation
+- README.md is the primary documentation entry point.
+- Keep setup, usage, and essential troubleshooting instructions concise and practical.
+- Do not generate implementation reports, summaries, walkthroughs, roadmaps, ADRs, or additional Markdown files unless explicitly requested or genuinely required.
+- Update existing documentation instead of creating overlapping documents.
+- Prefer examples and commands over lengthy theoretical explanations.
+- Avoid repeating information already obvious from the source code.
+
+## Delivery
+- Keep each change small and independently reviewable.
+- Preserve existing behavior unless a change is explicitly requested.
+- Avoid unrelated formatting or directory restructuring.
+- Report briefly: what changed, why, and how it was verified.
+- Mention important risks or limitations without generating a separate report.
+- Stop when the requested work is complete; do not automatically start additional improvements.
+
+## Complexity Check
+Before finishing, ask:
+1. Is there a simpler implementation?
+2. Did I create files, abstractions, tests, or dependencies that are unnecessary?
+3. Can a developer unfamiliar with the project follow the code easily?
+4. Did I solve the requested problem without expanding scope?
+
+If complexity increased without clear value, simplify before finishing.
+
+
 # Project conventions
 
 - The user authorized finishing core roadmap milestones 1–7. Reporting and
@@ -43,8 +107,9 @@
   real credentials or network access. Assert identity blocks service calls.
 - Before finishing, run `uv run pytest`, `uv run ruff check .`, and
   `uv run ruff format --check .`. Fix failures and report checks actually run.
-- Keep milestone status in ROADMAP.md. Record all implemented changes and exact
-  verification steps/results in IMPLEMENTATION_REPORT.md for this request.
+- Update ROADMAP.md only when milestone scope or status changes.
+- Report changes and verification results in chat. Do not create or append
+  implementation reports unless explicitly requested.
 
 - Documentation uses ACCOUNT_ID, APP_ID, API_ID, and OWNER/REPOSITORY placeholders.
   Test identities must be synthetic. Never copy live results into public docs.
