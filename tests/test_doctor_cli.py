@@ -261,7 +261,18 @@ def test_online_doctor_only_verifies_identity_and_never_exports_it(
     output = tmp_path / "doctor.json"
 
     result = runner.invoke(
-        app, OPTIONS + ["doctor", "--online", "--format", "json", "--output", str(output)]
+        app,
+        OPTIONS
+        + [
+            "doctor",
+            "--online",
+            "--project",
+            str(tmp_path),
+            "--format",
+            "json",
+            "--output",
+            str(output),
+        ],
     )
 
     assert result.exit_code == (0 if outcome == "success" else 1), result.output
@@ -275,11 +286,11 @@ def test_online_doctor_only_verifies_identity_and_never_exports_it(
     session.client.assert_called_once()
     assert session.client.call_args.args == ("sts",)
     assert session.client.call_args.kwargs["region_name"] == REGION
-    passing_checks.assert_called_once_with("brewmaster", ACCOUNT, [REGION], None)
+    passing_checks.assert_called_once_with("brewmaster", ACCOUNT, [REGION], tmp_path)
     saved = output.read_text(encoding="utf-8")
     assert json.loads(saved) == report
     assert result.stderr == ""
-    assert_private(result.output + saved, str(output))
+    assert_private(result.output + saved, str(output), str(tmp_path))
 
 
 def test_online_local_failure_skips_identity_and_marks_report_incomplete(monkeypatch, harness):
@@ -301,16 +312,6 @@ def test_online_local_failure_skips_identity_and_marks_report_incomplete(monkeyp
     assert identity["next_step"]
     factory.assert_not_called()
     session.client.assert_not_called()
-
-
-def test_doctor_forwards_explicit_project_to_local_checks(passing_checks, tmp_path):
-    result = runner.invoke(
-        app, OPTIONS + ["doctor", "--project", str(tmp_path), "--format", "json"]
-    )
-
-    assert result.exit_code == 0, result.output
-    passing_checks.assert_called_once_with("brewmaster", ACCOUNT, [REGION], tmp_path)
-    assert_private(result.output, str(tmp_path))
 
 
 @pytest.mark.parametrize("status,exit_code", (("warn", 0), ("fail", 1)))

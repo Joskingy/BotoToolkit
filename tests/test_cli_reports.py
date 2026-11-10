@@ -7,10 +7,9 @@ import pytest
 from conftest import (
     ACCOUNT,
     REGION,
-    app_response,
-    branch_response,
     identity_response,
     job_response,
+    preflight,
 )
 from typer.testing import CliRunner
 
@@ -110,34 +109,18 @@ def test_api_keys_empty_default_table_distinguishes_no_resources_from_denial(ser
         assert "No matching resources/costs found." in result.stdout
 
 
-def queue_retry_preflight(stubs):
-    stub = stubs["amplify", REGION]
-    stub.add_response("get_app", {"app": app_response()}, {"appId": "d123"})
-    stub.add_response(
-        "get_branch",
-        {"branch": {**branch_response("dev"), "stage": "DEVELOPMENT"}},
-        {"appId": "d123", "branchName": "dev"},
-    )
-    stub.add_response(
-        "get_job",
-        {"job": {"summary": job_response("1", status="FAILED"), "steps": []}},
-        {"appId": "d123", "branchName": "dev", "jobId": "1"},
-    )
-    stub.add_response("list_jobs", {"jobSummaries": []}, {"appId": "d123", "branchName": "dev"})
-
-
 def test_reviewed_deploy_cli_submits_mocked_retry_and_renders_receipt(harness, tmp_path):
     _, session, stubs = harness
     identity_response(stubs)
     access = AwsAccess.connect("brewmaster", ACCOUNT, REGION)
-    queue_retry_preflight(stubs)
+    preflight(stubs)
     plan = create_plan(access, REGION, "d123", "dev", "1")
     envelope = Report(access.identity, "deployment_plan", plan.created_at, [REGION])
     envelope.rows.append(plan)
     path = tmp_path / "plan.json"
     path.write_text(json_report(envelope), encoding="utf-8")
     identity_response(stubs)
-    queue_retry_preflight(stubs)
+    preflight(stubs)
     stubs["amplify", REGION].add_response(
         "start_job",
         {"jobSummary": job_response("2", status="PENDING")},
