@@ -1,4 +1,5 @@
 from datetime import timedelta
+from time import monotonic
 
 import pytest
 from conftest import (
@@ -12,7 +13,7 @@ from conftest import (
     job_response,
 )
 
-from amplify_ops.aws import AuthenticationFailure, AwsAccess
+from amplify_ops.aws import AuthenticationFailure, AwsAccess, InventoryBudget
 from amplify_ops.inventory import collect_inventory
 
 
@@ -181,3 +182,32 @@ def test_tied_start_time_uses_numeric_job_id(harness):
     )
     report = collect_inventory(connect(), [REGION])
     assert report.apps[0].branches[0].latest_deployment.job_id == "10"
+
+
+@pytest.mark.parametrize("more_jobs", [False, True], ids=["exact-budget", "truncated"])
+def test_scan_budget_counts_empty_pages_and_stops_nested_pagination(harness, more_jobs):
+    _, _, stubs = harness
+    identity_response(stubs)
+    stub = stubs["amplify", REGION]
+    stub.add_response("list_apps", {"apps": [app_response()]}, {})
+    stub.add_response("list_branches", {"branches": [branch_response()]}, {"appId": "d123"})
+    job_params = {"appId": "d123", "branchName": "main"}
+    stub.add_response(
+        "list_jobs", {"jobSummaries": [job_response()], "nextToken": "jobs2"}, job_params
+    )
+    empty_page = {"jobSummaries": []}
+    if more_jobs:
+        empty_page["nextToken"] = "jobs3"
+    stub.add_response("list_jobs", empty_page, {**job_params, "nextToken": "jobs2"})
+
+    budget = InventoryBudget(4, monotonic() + 30, lambda: False)
+    report = collect_inventory(connect(), [REGION], budget=budget)
+
+    branch = report.apps[0].branches[0]
+    assert report.complete is not more_jobs
+    assert branch.deployments_complete is not more_jobs
+    if more_jobs:
+        assert branch.latest_deployment is None
+        assert [error.code for error in report.errors] == ["PageLimit"]
+    else:
+        assert branch.latest_deployment.job_id == "1"

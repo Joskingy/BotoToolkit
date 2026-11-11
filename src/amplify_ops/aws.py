@@ -1,8 +1,9 @@
 """AWS boundary: explicit profile, verified identity, and safe error translation."""
 
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import closing
 from dataclasses import dataclass
+from time import monotonic
 from typing import Any
 
 import boto3
@@ -46,6 +47,39 @@ class AuthenticationFailure(Exception):
 @dataclass
 class ResourceFailure(Exception):
     error: ScanError
+
+
+@dataclass
+class InventoryLimitReached(Exception):
+    error: ScanError
+
+
+@dataclass
+class InventoryBudget:
+    remaining_pages: int
+    deadline: float
+    cancelled: Callable[[], bool]
+
+    def take_page(self, context: ScanError) -> None:
+        if self.cancelled():
+            code = "Cancelled"
+        elif monotonic() >= self.deadline:
+            code = "TimeLimit"
+        elif self.remaining_pages == 0:
+            code = "PageLimit"
+        else:
+            self.remaining_pages -= 1
+            return
+        raise InventoryLimitReached(
+            ScanError(
+                context.region,
+                context.operation,
+                code,
+                "limit",
+                context.app_id,
+                context.branch_name,
+            )
+        )
 
 
 def _translate(error: BotoCoreError | ClientError, context: ScanError) -> ResourceFailure:
@@ -103,12 +137,12 @@ class AwsAccess:
             raise AuthenticationFailure("Identity verification failed: caller ARN is missing.")
         return cls(session, Identity(account, arn))
 
-    def amplify(self, region: str) -> AmplifyReader:
+    def amplify(self, region: str, *, budget: InventoryBudget | None = None) -> AmplifyReader:
         try:
             client = self._session.client("amplify", region_name=region, config=SDK_CONFIG)
         except (BotoCoreError, ClientError) as error:
             raise _translate(error, ScanError(region, "create_client", "", "")) from None
-        return AmplifyReader(client, region)
+        return AmplifyReader(client, region, budget=budget)
 
     def service(self, service: str, region: str, *, write: bool = False) -> ServiceReader:
         config = (
@@ -165,9 +199,10 @@ class ServiceReader:
 class AmplifyReader:
     """One client per region; all implemented operations are read-only."""
 
-    def __init__(self, client: Any, region: str) -> None:
+    def __init__(self, client: Any, region: str, *, budget: InventoryBudget | None = None) -> None:
         self.client = client
         self.region = region
+        self.budget = budget
 
     def close(self) -> None:
         self.client.close()
@@ -208,7 +243,17 @@ class AmplifyReader:
             params["branchName"] = branch_name
         context = ScanError(self.region, operation, "", "", app_id, branch_name)
         try:
-            for page in self.client.get_paginator(operation).paginate(**params):
+            pages = iter(self.client.get_paginator(operation).paginate(**params))
+            while True:
+                if self.budget is not None:
+                    self.budget.take_page(context)
+                page = next(pages, None)
+                if page is None:
+                    return
                 yield from page.get(result_key, [])
+                # All Amplify list operations use nextToken. Finishing the last
+                # page does not consume another request from the shared budget.
+                if self.budget is not None and not page.get("nextToken"):
+                    return
         except (BotoCoreError, ClientError) as error:
             raise _translate(error, context) from None
