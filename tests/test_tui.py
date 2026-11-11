@@ -122,8 +122,9 @@ def test_cli_requires_one_mode_and_real_terminal():
     wrong_view = f"arn:aws:resource-explorer-2:us-west-2:{ACCOUNT}:view/ops/example"
     result = runner.invoke(app, [*options, "tui", "--live", "--view-arn", wrong_view])
     assert result.exit_code == 2
-    assert "Invalid value for --view-arn" in result.stderr
-    assert "selected region and account" in result.stderr
+    error = Text.from_ansi(result.stderr).plain
+    assert "Invalid value for --view-arn" in error
+    assert "selected region and account" in error
     result = runner.invoke(app, ["--profile", "brewmaster", "tui", "--demo"])
     assert result.exit_code == 2
     assert "interactive terminal" in result.stderr
