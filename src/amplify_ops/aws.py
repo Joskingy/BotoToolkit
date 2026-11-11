@@ -31,7 +31,12 @@ AUTH_CODES = {
     "RequestExpired",
     "TokenRefreshRequired",
 }
-ACCESS_CODES = {"AccessDenied", "AccessDeniedException", "UnauthorizedException"}
+ACCESS_CODES = {
+    "AccessDenied",
+    "AccessDeniedException",
+    "UnauthorizedException",
+    "UnauthorizedOperation",
+}
 
 
 class AuthenticationFailure(Exception):
