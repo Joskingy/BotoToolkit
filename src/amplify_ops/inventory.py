@@ -124,7 +124,12 @@ def collect_inventory(
 
 
 def collect_ec2_inventory(
-    access: AwsAccess, regions: list[str], owner: str | None, environment: str | None
+    access: AwsAccess,
+    regions: list[str],
+    owner: str | None,
+    environment: str | None,
+    *,
+    budget: InventoryBudget | None = None,
 ) -> Report:
     report = Report(access.identity, "ec2_inventory", timestamp(datetime.now(UTC)), regions)
     report.observations.append(
@@ -139,7 +144,7 @@ def collect_ec2_inventory(
         instances: list[dict[str, Any]] = []
         statuses: dict[str, dict[str, Any]] = {}
         try:
-            with closing(access.service("ec2", region)) as reader:
+            with closing(access.service("ec2", region, budget=budget)) as reader:
                 for page in reader.pages(
                     "describe_instances", **({"Filters": filters} if filters else {})
                 ):
@@ -153,7 +158,7 @@ def collect_ec2_inventory(
                     ):
                         for status in page.get("InstanceStatuses", []):
                             statuses[status["InstanceId"]] = status
-        except ResourceFailure as error:
+        except (ResourceFailure, InventoryLimitReached) as error:
             report.add_error(error.error)
         for instance in instances:
             tags = {tag["Key"]: tag["Value"] for tag in instance.get("Tags", [])}
@@ -201,7 +206,12 @@ def _alarm_states(history_data: str) -> tuple[str | None, str | None]:
 
 
 def collect_cloudwatch_alarms(
-    access: AwsAccess, regions: list[str], state: str | None, alarm_name: str | None
+    access: AwsAccess,
+    regions: list[str],
+    state: str | None,
+    alarm_name: str | None,
+    *,
+    budget: InventoryBudget | None = None,
 ) -> Report:
     report = Report(access.identity, "cloudwatch_alarms", timestamp(datetime.now(UTC)), regions)
     params: dict[str, Any] = {"AlarmTypes": list(_ALARM_TYPES)}
@@ -215,7 +225,7 @@ def collect_cloudwatch_alarms(
     for region in regions:
         matched: list[CloudWatchAlarm] = []
         try:
-            with closing(access.service("cloudwatch", region)) as reader:
+            with closing(access.service("cloudwatch", region, budget=budget)) as reader:
                 for page in reader.pages("describe_alarms", **params):
                     for alarm_type in _ALARM_TYPES:
                         for alarm in page.get(f"{alarm_type}s", []):
@@ -247,7 +257,7 @@ def collect_cloudwatch_alarms(
                                     region, row.name, timestamp(item["Timestamp"]), old, new
                                 )
                             )
-        except ResourceFailure as error:
+        except (ResourceFailure, InventoryLimitReached) as error:
             report.add_error(error.error)
     return report
 
@@ -260,6 +270,7 @@ def collect_cloudtrail_changes(
     resource: str | None,
     *,
     now: datetime | None = None,
+    budget: InventoryBudget | None = None,
 ) -> Report:
     end = now or datetime.now(UTC)
     start = end - timedelta(hours=hours)
@@ -271,7 +282,7 @@ def collect_cloudtrail_changes(
     for region in regions:
         seen = 0
         try:
-            with closing(access.service("cloudtrail", region)) as reader:
+            with closing(access.service("cloudtrail", region, budget=budget)) as reader:
                 for page in reader.pages(
                     "lookup_events",
                     LookupAttributes=[{"AttributeKey": "ReadOnly", "AttributeValue": "false"}],
@@ -304,7 +315,7 @@ def collect_cloudtrail_changes(
                             ScanError(region, "lookup_events", "EventLimitReached", "limit")
                         )
                         break
-        except ResourceFailure as error:
+        except (ResourceFailure, InventoryLimitReached) as error:
             report.add_error(error.error)
     return report
 
@@ -342,6 +353,7 @@ def collect_resources(
     resource_filter: str | None,
     *,
     summary: bool,
+    budget: InventoryBudget | None = None,
 ) -> Report:
     report = Report(
         access.identity,
@@ -362,7 +374,7 @@ def collect_resources(
     if resource_filter is not None:
         params["Filters"] = {"FilterString": resource_filter}
     try:
-        with closing(access.service("resource-explorer-2", region)) as reader:
+        with closing(access.service("resource-explorer-2", region, budget=budget)) as reader:
             _resource_explorer_coverage(reader, report, view_arn)
             for page in reader.pages("list_resources", **params):
                 for resource in page.get("Resources", []):
@@ -388,7 +400,7 @@ def collect_resources(
                                 timestamp(reported_at) if reported_at is not None else None,
                             )
                         )
-    except ResourceFailure as error:
+    except (ResourceFailure, InventoryLimitReached) as error:
         report.add_error(error.error)
     if unknown_owner:
         report.add_error(ScanError(region, "list_resources", "UnknownResourceOwner", "coverage"))
@@ -428,6 +440,9 @@ def _completed_snapshots(
                         previous = batch.get(volume_id)
                         if previous is None or started > previous["StartTime"]:
                             batch[volume_id] = snapshot
+        except InventoryLimitReached as error:
+            report.add_error(error.error)
+            break
         except ResourceFailure as error:
             report.add_error(error.error)
         else:
@@ -436,7 +451,13 @@ def _completed_snapshots(
     return latest, checked
 
 
-def collect_ebs_candidates(access: AwsAccess, regions: list[str], owner: str | None) -> Report:
+def collect_ebs_candidates(
+    access: AwsAccess,
+    regions: list[str],
+    owner: str | None,
+    *,
+    budget: InventoryBudget | None = None,
+) -> Report:
     report = Report(access.identity, "ebs_candidates", timestamp(datetime.now(UTC)), regions)
     report.observations.extend(
         [
@@ -453,7 +474,7 @@ def collect_ebs_candidates(access: AwsAccess, regions: list[str], owner: str | N
         snapshots: dict[str, dict[str, Any]] = {}
         checked: set[str] = set()
         try:
-            with closing(access.service("ec2", region)) as reader:
+            with closing(access.service("ec2", region, budget=budget)) as reader:
                 for page in reader.pages("describe_volumes", Filters=filters):
                     volumes.extend(
                         volume
@@ -463,7 +484,7 @@ def collect_ebs_candidates(access: AwsAccess, regions: list[str], owner: str | N
                 snapshots, checked = _completed_snapshots(
                     reader, report, [volume["VolumeId"] for volume in volumes]
                 )
-        except ResourceFailure as error:
+        except (ResourceFailure, InventoryLimitReached) as error:
             report.add_error(error.error)
         for volume in volumes:
             volume_id = volume["VolumeId"]

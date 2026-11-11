@@ -78,6 +78,27 @@ def harness(monkeypatch):
             stub.assert_no_pending_responses()
 
 
+@pytest.fixture
+def service_stub(harness):
+    _, session, stubs = harness
+    real = boto3.session.Session(
+        aws_access_key_id="testing", aws_secret_access_key="testing", region_name=REGION
+    )
+    session.client.side_effect = lambda service, *, region_name, config: (
+        stubs[service, region_name].client
+    )
+    identity_response(stubs)
+    with ExitStack() as stack:
+
+        def create(service):
+            stub = Stubber(real.client(service, region_name=REGION))
+            stubs[service, REGION] = stub
+            stack.enter_context(stub)
+            return stub
+
+        yield create
+
+
 def identity_response(stubs, account=ACCOUNT):
     stubs["sts", REGION].add_response(
         "get_caller_identity", {"Account": account, "Arn": ARN, "UserId": "test"}, {}

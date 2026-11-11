@@ -143,6 +143,23 @@ class Comparison:
         self.errors.append(error)
 
 
+type ReportRow = (
+    ApiKeyExpiry
+    | ApiSummary
+    | CostRow
+    | StaleEnvironment
+    | DeploymentPlan
+    | DeploymentReceipt
+    | Ec2Instance
+    | CloudWatchAlarm
+    | AlarmStateChange
+    | CloudTrailChange
+    | DiscoveredResource
+    | ResourceCount
+    | EbsCandidate
+)
+
+
 @dataclass
 class Report:
     """Common envelope for the remaining reports; rows are typed allowlist models."""
@@ -153,21 +170,7 @@ class Report:
     regions: list[str]
     schema_version: int = 1
     complete: bool = True
-    rows: list[
-        ApiKeyExpiry
-        | ApiSummary
-        | CostRow
-        | StaleEnvironment
-        | DeploymentPlan
-        | DeploymentReceipt
-        | Ec2Instance
-        | CloudWatchAlarm
-        | AlarmStateChange
-        | CloudTrailChange
-        | DiscoveredResource
-        | ResourceCount
-        | EbsCandidate
-    ] = field(default_factory=list)
+    rows: list[ReportRow] = field(default_factory=list)
     observations: list[str] = field(default_factory=list)
     errors: list[ScanError] = field(default_factory=list)
 
