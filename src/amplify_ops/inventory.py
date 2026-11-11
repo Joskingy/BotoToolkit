@@ -8,7 +8,14 @@ from itertools import batched
 from typing import Any
 from urllib.parse import urlsplit, urlunsplit
 
-from amplify_ops.aws import AmplifyReader, AwsAccess, ResourceFailure, ServiceReader
+from amplify_ops.aws import (
+    AmplifyReader,
+    AwsAccess,
+    InventoryBudget,
+    InventoryLimitReached,
+    ResourceFailure,
+    ServiceReader,
+)
 from amplify_ops.models import (
     AlarmStateChange,
     App,
@@ -87,12 +94,14 @@ def collect_branches(reader: AmplifyReader, app: App, report: Inventory) -> None
         report.add_error(error.error)
 
 
-def collect_inventory(access: AwsAccess, regions: list[str]) -> Inventory:
+def collect_inventory(
+    access: AwsAccess, regions: list[str], *, budget: InventoryBudget | None = None
+) -> Inventory:
     report = Inventory(access.identity, list(regions), timestamp(datetime.now(UTC)))
     for region in regions:
         reader = None
         try:
-            reader = access.amplify(region)
+            reader = access.amplify(region, budget=budget)
             for raw in reader.items("list_apps", "apps"):
                 app = App(
                     region=region,
@@ -103,6 +112,9 @@ def collect_inventory(access: AwsAccess, regions: list[str]) -> Inventory:
                 )
                 report.apps.append(app)
                 collect_branches(reader, app, report)
+        except InventoryLimitReached as error:
+            report.add_error(error.error)
+            break
         except ResourceFailure as error:
             report.add_error(error.error)
         finally:
