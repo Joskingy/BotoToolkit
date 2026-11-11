@@ -3,17 +3,19 @@
 import importlib.util
 import re
 import sys
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from enum import StrEnum
 from pathlib import Path
+from time import monotonic
 from typing import Annotated
 
 import typer
 from rich.console import Console
 
 from amplify_ops.appsync import key_expirations
-from amplify_ops.aws import AuthenticationFailure, AwsAccess, ResourceFailure
+from amplify_ops.aws import AuthenticationFailure, AwsAccess, InventoryBudget, ResourceFailure
 from amplify_ops.comparison import compare_configuration
 from amplify_ops.costs import cost_report
 from amplify_ops.deployments import DeploymentBlocked, create_plan, execute_plan, load_plan
@@ -112,11 +114,20 @@ def require_aws_options(profile: str | None, account: str | None, regions: list[
 
 @app.command()
 def tui(
+    ctx: typer.Context,
     demo: Annotated[bool, typer.Option(help="Browse built-in synthetic data offline.")] = False,
+    live: Annotated[bool, typer.Option(help="Scan Amplify once in one AWS region.")] = False,
 ) -> None:
-    """Open the optional terminal browser. Only offline --demo is implemented."""
-    if not demo:
-        raise typer.BadParameter("Use --demo; live TUI access is not implemented.")
+    """Open the optional terminal browser for offline demo or live Amplify inventory."""
+    if demo == live:
+        raise typer.BadParameter("Choose exactly one of --demo and --live.")
+    settings: Settings = ctx.obj
+    if live:
+        require_aws_options(settings.profile, settings.expected_account, settings.regions)
+        if settings.profile != "brewmaster":
+            raise typer.BadParameter("Use the local brewmaster profile.", param_hint="--profile")
+        if len(settings.regions) != 1:
+            raise typer.BadParameter("Live TUI requires exactly one region.", param_hint="--region")
     if importlib.util.find_spec("textual") is None:
         diagnostics.print(
             "Install the TUI extra from your trusted checkout: uv sync --locked --extra tui."
@@ -126,9 +137,17 @@ def tui(
         diagnostics.print("TUI requires an interactive terminal. Use existing table/JSON commands.")
         raise typer.Exit(2)
     # Lazy import keeps normal CLI commands independent of the optional UI dependency.
-    from amplify_ops.tui import DemoBrowser
+    from amplify_ops.tui import InventoryBrowser
 
-    DemoBrowser().run()
+    def load_inventory(cancelled: Callable[[], bool]) -> Inventory:
+        access = AwsAccess.connect(settings.profile, settings.expected_account, settings.regions[0])
+        budget = InventoryBudget(100, monotonic() + 30, cancelled)
+        return collect_inventory(access, settings.regions, budget=budget)
+
+    browser = InventoryBrowser(load_inventory if live else None)
+    browser.run()
+    if browser.return_code:
+        raise typer.Exit(browser.return_code)
 
 
 @app.command()
