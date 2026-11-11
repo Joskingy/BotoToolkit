@@ -1,17 +1,19 @@
 """Exercise user journeys and the live and offline boundaries, without duplicating AWS tests."""
 
 import asyncio
+import json
 from unittest.mock import Mock
 
 import pytest
 import typer
-from conftest import ACCOUNT, REGION, app_response, branch_response, identity_response
+from botocore.stub import ANY
+from conftest import ACCOUNT, NOW, REGION, app_response, branch_response, identity_response
 from rich.text import Text
-from textual.widgets import DataTable, Footer, Input, Static
+from textual.widgets import DataTable, Footer, Input, Select, Static
 from typer.testing import CliRunner
 
 from amplify_ops.cli import Settings, app, tui
-from amplify_ops.tui import InventoryBrowser
+from amplify_ops.tui import InventoryBrowser, View
 
 
 @pytest.fixture(scope="module")
@@ -117,6 +119,11 @@ def test_cli_requires_one_mode_and_real_terminal():
     result = runner.invoke(app, [*options, "--region", "us-west-2", "tui", "--live"])
     assert result.exit_code == 2
     assert "exactly one region" in result.stderr
+    wrong_view = f"arn:aws:resource-explorer-2:us-west-2:{ACCOUNT}:view/ops/example"
+    result = runner.invoke(app, [*options, "tui", "--live", "--view-arn", wrong_view])
+    assert result.exit_code == 2
+    assert "Invalid value for --view-arn" in result.stderr
+    assert "selected region and account" in result.stderr
     result = runner.invoke(app, ["--profile", "brewmaster", "tui", "--demo"])
     assert result.exit_code == 2
     assert "interactive terminal" in result.stderr
@@ -190,3 +197,191 @@ def test_live_startup_verifies_identity_and_only_scans_once(
     assert [call.args[0] for call in session.client.call_args_list] == (
         ["sts", "amplify"] if matches else ["sts"]
     )
+
+
+def test_live_views_load_on_selection_and_reverify_before_each_scan(
+    tui_runner, harness, service_stub, monkeypatch
+):
+    factory, session, stubs = harness
+    stubs["amplify", REGION].add_response("list_apps", {"apps": []}, {})
+    for _ in range(7):
+        identity_response(stubs)
+    identity_response(stubs, "000000000000")
+
+    volume = "vol-00000000000000001"
+    instance = "i-00000000000000001"
+    ec2 = service_stub("ec2")
+    ec2.add_response(
+        "describe_volumes",
+        {"Volumes": [{"VolumeId": volume, "State": "available", "Size": 20}]},
+        {"Filters": [{"Name": "status", "Values": ["available"]}]},
+    )
+    ec2.add_client_error("describe_snapshots", "UnauthorizedOperation", "private-snapshot-error")
+    ec2.add_response(
+        "describe_instances",
+        {"Reservations": [{"Instances": [{"InstanceId": instance, "State": {"Name": "stopped"}}]}]},
+        {},
+    )
+    ec2.add_response(
+        "describe_instance_status",
+        {"InstanceStatuses": []},
+        {"InstanceIds": [instance], "IncludeAllInstances": True},
+    )
+
+    alarms = service_stub("cloudwatch")
+    name = "[bold]demo-alarm[/bold]"
+    alarm_types = {"AlarmTypes": ["MetricAlarm", "CompositeAlarm", "LogAlarm"]}
+    alarm = {"CompositeAlarms": [{"AlarmName": name, "StateValue": "ALARM"}]}
+    alarms.add_response("describe_alarms", alarm, alarm_types)
+    alarms.add_response("describe_alarms", alarm, {**alarm_types, "AlarmNames": [name]})
+    alarms.add_response(
+        "describe_alarm_history",
+        {
+            "AlarmHistoryItems": [
+                {
+                    "Timestamp": NOW,
+                    "HistoryData": json.dumps(
+                        {
+                            "oldState": {"stateValue": "OK"},
+                            "newState": {"stateValue": "ALARM", "stateReason": "private-history"},
+                        }
+                    ),
+                }
+            ]
+        },
+        {
+            "AlarmName": name,
+            "AlarmTypes": ["CompositeAlarm"],
+            "HistoryItemType": "StateUpdate",
+            "ScanBy": "TimestampDescending",
+        },
+    )
+
+    trail = service_stub("cloudtrail")
+    trail.add_response(
+        "lookup_events",
+        {
+            "Events": [
+                {
+                    "EventId": "test-event",
+                    "EventTime": NOW,
+                    "EventName": "StopInstances",
+                    "Username": "operator",
+                    "Resources": [{"ResourceName": instance}],
+                }
+            ]
+        },
+        {
+            "LookupAttributes": [{"AttributeKey": "ReadOnly", "AttributeValue": "false"}],
+            "StartTime": ANY,
+            "EndTime": ANY,
+            "MaxResults": 50,
+        },
+    )
+
+    view_arn = f"arn:aws:resource-explorer-2:{REGION}:{ACCOUNT}:view/ops/example"
+    resources = service_stub("resource-explorer-2")
+    resource_arn = f"arn:aws:ec2:{REGION}:{ACCOUNT}:instance/{instance}"
+    for _ in range(2):
+        resources.add_response("get_view", {"View": {"ViewArn": view_arn}}, {"ViewArn": view_arn})
+        resources.add_response("get_index", {"Type": "LOCAL", "State": "ACTIVE"}, {})
+        resources.add_response(
+            "list_resources",
+            {
+                "Resources": [
+                    {
+                        "Arn": resource_arn,
+                        "OwningAccountId": ACCOUNT,
+                        "Service": "ec2",
+                        "Region": REGION,
+                        "ResourceType": "ec2:instance",
+                        "LastReportedAt": NOW,
+                    }
+                ]
+            },
+            {"ViewArn": view_arn, "MaxResults": 100},
+        )
+
+    async def journey(browser):
+        async with browser.run_test(size=(110, 35)) as pilot:
+            picker = browser.query_one(Select)
+            table = browser.query_one(DataTable)
+
+            async def finish_scan():
+                await pilot.pause()
+                await browser.workers.wait_for_complete()
+                await pilot.pause()
+
+            async def select(view):
+                picker.value = view
+                await finish_scan()
+
+            def called_services():
+                return [call.args[0] for call in session.client.call_args_list]
+
+            await finish_scan()
+            assert called_services() == ["sts", "amplify"]
+            picker.focus()
+            await pilot.press("enter", "escape")
+            assert not picker.expanded
+            assert called_services() == ["sts", "amplify"]
+            await pilot.press("enter", "down", "enter")
+            await finish_scan()
+            assert picker.value is View.EBS
+            assert table.row_count == 1 and volume in details(browser)
+            assert "PARTIAL" in str(browser.query_one("#banner", Static).content)
+            assert "Snapshot check: unknown" in details(browser)
+            assert "private-snapshot-error" not in details(browser)
+
+            await select(View.EC2)
+            assert "stopped" in details(browser) and instance in details(browser)
+            await select(View.CLOUDWATCH)
+            assert name in details(browser) and "Recent state changes" not in details(browser)
+            assert called_services().count("cloudwatch") == 1
+            table.focus()
+            await pilot.press("enter")
+            await finish_scan()
+            assert "OK → ALARM" in details(browser)
+            assert "private-history" not in details(browser)
+
+            await select(View.CLOUDTRAIL)
+            browser.query_one(Input).value = instance
+            await pilot.pause()
+            assert table.row_count == 1 and "operator" in details(browser)
+            await select(View.RESOURCES)
+            assert resource_arn in details(browser)
+            await select(View.RESOURCE_COUNTS)
+            assert "Count: 1" in details(browser)
+
+            await select(View.EBS)
+            assert "Account mismatch" in details(browser)
+            assert picker.disabled
+            assert called_services() == [
+                "sts",
+                "amplify",
+                "sts",
+                "ec2",
+                "sts",
+                "ec2",
+                "sts",
+                "cloudwatch",
+                "sts",
+                "cloudwatch",
+                "sts",
+                "cloudtrail",
+                "sts",
+                "resource-explorer-2",
+                "sts",
+                "resource-explorer-2",
+                "sts",
+            ]
+            await pilot.press("ctrl+q")
+
+    monkeypatch.setattr("amplify_ops.cli.sys.stdin.isatty", lambda: True)
+    monkeypatch.setattr("amplify_ops.cli.sys.stdout.isatty", lambda: True)
+    monkeypatch.setattr(InventoryBrowser, "run", lambda browser: tui_runner.run(journey(browser)))
+    ctx = typer.Context(typer.main.get_command(app), obj=Settings("brewmaster", ACCOUNT, [REGION]))
+    with pytest.raises(typer.Exit) as error:
+        tui(ctx, live=True, view_arn=view_arn)
+    assert error.value.exit_code == 1
+    factory.assert_called_once_with(profile_name="brewmaster", region_name=REGION)

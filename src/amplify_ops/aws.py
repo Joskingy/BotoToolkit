@@ -7,8 +7,10 @@ from time import monotonic
 from typing import Any
 
 import boto3
+from botocore import xform_name
 from botocore.config import Config
 from botocore.exceptions import BotoCoreError, ClientError
+from botocore.model import OperationModel
 from botocore.paginate import Paginator
 
 from amplify_ops.models import Identity, ScanError
@@ -60,7 +62,7 @@ class InventoryBudget:
     deadline: float
     cancelled: Callable[[], bool]
 
-    def take_page(self, context: ScanError) -> None:
+    def take_request(self, context: ScanError) -> None:
         if self.cancelled():
             code = "Cancelled"
         elif monotonic() >= self.deadline:
@@ -106,6 +108,34 @@ def _translate(error: BotoCoreError | ClientError, context: ScanError) -> Resour
     )
 
 
+def _identity_failure(error: BotoCoreError | ClientError) -> AuthenticationFailure:
+    code = (
+        error.response.get("Error", {}).get("Code", "Unknown")
+        if isinstance(error, ClientError)
+        else type(error).__name__
+    )
+    return AuthenticationFailure(
+        f"Identity verification failed ({code}); check the selected profile and session."
+    )
+
+
+def _verify_identity(session: boto3.Session, expected_account: str, region: str) -> Identity:
+    try:
+        with closing(session.client("sts", region_name=region, config=SDK_CONFIG)) as sts:
+            response = sts.get_caller_identity()
+    except (BotoCoreError, ClientError) as error:
+        raise _identity_failure(error) from None
+    account = response.get("Account")
+    arn = response.get("Arn")
+    if account != expected_account:
+        raise AuthenticationFailure(
+            f"Account mismatch: expected {expected_account}, received {account}; scan blocked."
+        )
+    if not arn:
+        raise AuthenticationFailure("Identity verification failed: caller ARN is missing.")
+    return Identity(account, arn)
+
+
 class AwsAccess:
     def __init__(self, session: boto3.Session, identity: Identity) -> None:
         self._session = session
@@ -115,27 +145,12 @@ class AwsAccess:
     def connect(cls, profile: str, expected_account: str, region: str) -> AwsAccess:
         try:
             session = boto3.Session(profile_name=profile, region_name=region)
-            with closing(session.client("sts", region_name=region, config=SDK_CONFIG)) as sts:
-                response = sts.get_caller_identity()
         except (BotoCoreError, ClientError) as error:
-            # All STS failures prevent verification, including access and transport errors.
-            code = (
-                error.response.get("Error", {}).get("Code", "Unknown")
-                if isinstance(error, ClientError)
-                else type(error).__name__
-            )
-            raise AuthenticationFailure(
-                f"Identity verification failed ({code}); check the selected profile and session."
-            ) from None
-        account = response.get("Account")
-        arn = response.get("Arn")
-        if account != expected_account:
-            raise AuthenticationFailure(
-                f"Account mismatch: expected {expected_account}, received {account}; scan blocked."
-            )
-        if not arn:
-            raise AuthenticationFailure("Identity verification failed: caller ARN is missing.")
-        return cls(session, Identity(account, arn))
+            raise _identity_failure(error) from None
+        return cls(session, _verify_identity(session, expected_account, region))
+
+    def reverify(self, region: str) -> None:
+        self.identity = _verify_identity(self._session, self.identity.account_id, region)
 
     def amplify(self, region: str, *, budget: InventoryBudget | None = None) -> AmplifyReader:
         try:
@@ -144,7 +159,14 @@ class AwsAccess:
             raise _translate(error, ScanError(region, "create_client", "", "")) from None
         return AmplifyReader(client, region, budget=budget)
 
-    def service(self, service: str, region: str, *, write: bool = False) -> ServiceReader:
+    def service(
+        self,
+        service: str,
+        region: str,
+        *,
+        write: bool = False,
+        budget: InventoryBudget | None = None,
+    ) -> ServiceReader:
         config = (
             SDK_CONFIG.merge(Config(retries={"mode": "standard", "total_max_attempts": 1}))
             if write
@@ -154,17 +176,36 @@ class AwsAccess:
             client = self._session.client(service, region_name=region, config=config)
         except (BotoCoreError, ClientError) as error:
             raise _translate(error, ScanError(region, "create_client", "", "")) from None
-        return ServiceReader(client, region)
+        return ServiceReader(client, region, budget=budget)
 
 
 class ServiceReader:
     """Shared SDK boundary for reporting services; writes require an explicit client."""
 
-    def __init__(self, client: Any, region: str) -> None:
+    def __init__(self, client: Any, region: str, *, budget: InventoryBudget | None = None) -> None:
         self.client = client
         self.region = region
+        self.budget = budget
+        if budget is not None:
+            # This SDK event runs once per API call, including each paginator page.
+            self.client.meta.events.register("provide-client-params", self._take_request)
+
+    def _take_request(self, model: OperationModel, params: dict[str, Any], **_: Any) -> None:
+        if self.budget is not None:
+            self.budget.take_request(
+                ScanError(
+                    self.region,
+                    xform_name(model.name),
+                    "",
+                    "",
+                    params.get("appId"),
+                    params.get("branchName"),
+                )
+            )
 
     def close(self) -> None:
+        if self.budget is not None:
+            self.client.meta.events.unregister("provide-client-params", self._take_request)
         self.client.close()
 
     def call(self, operation: str, **params: Any) -> dict[str, Any]:
@@ -193,19 +234,14 @@ class ServiceReader:
                 raise ValueError("Unsupported paginated operation")
             yield from paginator.paginate(**params)
         except (BotoCoreError, ClientError) as error:
-            raise _translate(error, ScanError(self.region, operation, "", "")) from None
+            context = ScanError(
+                self.region, operation, "", "", params.get("appId"), params.get("branchName")
+            )
+            raise _translate(error, context) from None
 
 
-class AmplifyReader:
-    """One client per region; all implemented operations are read-only."""
-
-    def __init__(self, client: Any, region: str, *, budget: InventoryBudget | None = None) -> None:
-        self.client = client
-        self.region = region
-        self.budget = budget
-
-    def close(self) -> None:
-        self.client.close()
+class AmplifyReader(ServiceReader):
+    """Read-only Amplify operations on one regional client."""
 
     def get_app(self, app_id: str) -> dict[str, Any]:
         context = ScanError(self.region, "get_app", "", "", app_id)
@@ -241,19 +277,5 @@ class AmplifyReader:
             params["appId"] = app_id
         if branch_name is not None:
             params["branchName"] = branch_name
-        context = ScanError(self.region, operation, "", "", app_id, branch_name)
-        try:
-            pages = iter(self.client.get_paginator(operation).paginate(**params))
-            while True:
-                if self.budget is not None:
-                    self.budget.take_page(context)
-                page = next(pages, None)
-                if page is None:
-                    return
-                yield from page.get(result_key, [])
-                # All Amplify list operations use nextToken. Finishing the last
-                # page does not consume another request from the shared budget.
-                if self.budget is not None and not page.get("nextToken"):
-                    return
-        except (BotoCoreError, ClientError) as error:
-            raise _translate(error, context) from None
+        for page in self.pages(operation, **params):
+            yield from page.get(result_key, [])

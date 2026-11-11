@@ -1,16 +1,17 @@
 """Exercise the AWS operations CLI with real SDK shapes and synthetic credentials."""
 
 import json
-from contextlib import ExitStack
 from datetime import timedelta
+from time import monotonic
 
-import boto3
 import pytest
-from botocore.stub import ANY, Stubber
+from botocore.stub import ANY
 from conftest import ACCOUNT, NOW, REGION, identity_response
 from typer.testing import CliRunner
 
+from amplify_ops.aws import AwsAccess, InventoryBudget
 from amplify_ops.cli import app
+from amplify_ops.inventory import collect_ebs_candidates
 
 OPTIONS = ["--profile", "brewmaster", "--expected-account", ACCOUNT, "--region", REGION]
 INSTANCE = "i-00000000000000001"
@@ -21,27 +22,6 @@ VIEW = (
     f"arn:aws:resource-explorer-2:{REGION}:{ACCOUNT}:view/ops/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
 )
 runner = CliRunner()
-
-
-@pytest.fixture
-def service_stub(harness):
-    _, session, stubs = harness
-    real = boto3.session.Session(
-        aws_access_key_id="testing", aws_secret_access_key="testing", region_name=REGION
-    )
-    session.client.side_effect = lambda service, *, region_name, config: (
-        stubs[service, region_name].client
-    )
-    identity_response(stubs)
-    with ExitStack() as stack:
-
-        def create(service):
-            stub = Stubber(real.client(service, region_name=REGION))
-            stubs[service, REGION] = stub
-            stack.enter_context(stub)
-            return stub
-
-        yield create
 
 
 @pytest.mark.parametrize(
@@ -432,3 +412,21 @@ def test_ebs_candidates_distinguishes_snapshot_evidence_from_unavailable_data(
     assert first["snapshot_check"] == ("unknown" if snapshot_denied else "found")
     assert second["snapshot_check"] == ("unknown" if snapshot_denied else "none_found")
     assert "private-snapshot-error" not in result.output
+
+
+def test_ebs_budget_keeps_collected_volumes_when_snapshot_scan_cannot_start(service_stub):
+    stub = service_stub("ec2")
+    stub.add_response(
+        "describe_volumes",
+        {"Volumes": [{"VolumeId": VOLUME, "State": "available", "Size": 20}]},
+        {"Filters": [{"Name": "status", "Values": ["available"]}]},
+    )
+    access = AwsAccess.connect("brewmaster", ACCOUNT, REGION)
+    report = collect_ebs_candidates(
+        access, [REGION], None, budget=InventoryBudget(1, monotonic() + 30, lambda: False)
+    )
+    assert not report.complete
+    assert [(error.operation, error.code) for error in report.errors] == [
+        ("describe_snapshots", "PageLimit")
+    ]
+    assert [(row.volume_id, row.snapshot_check) for row in report.rows] == [(VOLUME, "unknown")]
