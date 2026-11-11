@@ -154,7 +154,19 @@ class Report:
     schema_version: int = 1
     complete: bool = True
     rows: list[
-        ApiKeyExpiry | ApiSummary | CostRow | StaleEnvironment | DeploymentPlan | DeploymentReceipt
+        ApiKeyExpiry
+        | ApiSummary
+        | CostRow
+        | StaleEnvironment
+        | DeploymentPlan
+        | DeploymentReceipt
+        | Ec2Instance
+        | CloudWatchAlarm
+        | AlarmStateChange
+        | CloudTrailChange
+        | DiscoveredResource
+        | ResourceCount
+        | EbsCandidate
     ] = field(default_factory=list)
     observations: list[str] = field(default_factory=list)
     errors: list[ScanError] = field(default_factory=list)
@@ -162,6 +174,80 @@ class Report:
     def add_error(self, error: ScanError) -> None:
         self.complete = False
         self.errors.append(error)
+
+
+@dataclass(frozen=True)
+class Ec2Instance:
+    region: str
+    instance_id: str
+    name: str | None
+    state: str | None
+    instance_type: str | None
+    owner: str | None
+    environment: str | None
+    auto_scaling_group: str | None
+    instance_status: str | None
+    system_status: str | None
+    volume_ids: list[str]
+
+
+@dataclass(frozen=True)
+class CloudWatchAlarm:
+    region: str
+    name: str
+    alarm_type: str
+    state: str | None
+    actions_enabled: bool | None
+    state_updated_at: str | None
+
+
+@dataclass(frozen=True)
+class AlarmStateChange:
+    region: str
+    name: str
+    timestamp: str
+    previous_state: str | None
+    new_state: str | None
+
+
+@dataclass(frozen=True)
+class CloudTrailChange:
+    region: str
+    event_id: str
+    timestamp: str
+    event_source: str | None
+    event_name: str | None
+    username: str | None
+    resources: list[str]
+
+
+@dataclass(frozen=True)
+class DiscoveredResource:
+    arn: str
+    service: str
+    resource_type: str
+    region: str
+    last_reported_at: str | None
+
+
+@dataclass(frozen=True)
+class ResourceCount:
+    service: str
+    region: str
+    count: int
+
+
+@dataclass(frozen=True)
+class EbsCandidate:
+    region: str
+    volume_id: str
+    size_gib: int | None
+    volume_type: str | None
+    owner: str | None
+    created_at: str | None
+    snapshot_check: str
+    snapshot_id: str | None
+    snapshot_started_at: str | None
 
 
 @dataclass(frozen=True)

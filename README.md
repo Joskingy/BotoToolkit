@@ -105,6 +105,67 @@ stdout for interactive use. SDK debug/wire logging is never enabled.
 Only local profile authentication is implemented. CI workflows run offline tests
 and require no AWS credentials; assumed-role CI authentication is outside scope.
 
+## EC2, CloudWatch, and CloudTrail
+
+Use the same explicit profile, independently confirmed account ID, and region
+options for the read-only operations reports.
+
+```powershell
+uv run --locked amplify-ops --profile brewmaster --expected-account ACCOUNT_ID --region REGION ec2 inventory --environment dev
+uv run --locked amplify-ops --profile brewmaster --expected-account ACCOUNT_ID --region REGION cloudwatch alarms --state ALARM
+uv run --locked amplify-ops --profile brewmaster --expected-account ACCOUNT_ID --region REGION cloudtrail changes --hours 24 --limit 100
+```
+
+- EC2 inventory uses `ec2:DescribeInstances` and `ec2:DescribeInstanceStatus`.
+  Use `--owner` and `--environment` to filter by the corresponding EC2 tags.
+  Results include instance and system health, the AWS-managed Auto Scaling
+  group tag, and attached EBS volume IDs. Missing health data is unknown.
+- CloudWatch alarms use `cloudwatch:DescribeAlarms` for metric, composite, and
+  log alarms. Use `--alarm-name ALARM_NAME` to include the latest 20 state
+  updates for that alarm via `cloudwatch:DescribeAlarmHistory`. AWS requires
+  `Resource: "*"` for these reads to include composite alarms.
+- CloudTrail changes use `cloudtrail:LookupEvents` to report management write
+  events, including unsuccessful attempts, within the last 90 days.
+  `--resource RESOURCE_ID` filters by exact resource name or ID within the
+  scanned events. The limit applies per region before filtering. If more events
+  exist, the report is partial. Raw events and access key IDs are omitted.
+
+Repeat `--region` before the command to read more than one region. Add
+`--format json` for JSON stdout or `--output PATH` for a new JSON file.
+Partial reports retain available rows and exit with code 3.
+
+## Resource inventory and EBS cleanup review
+
+The operational CLI is `amplify-ops`. From the project directory, install the
+locked environment with `uv sync --locked`. Resolve the expected account and
+region locally and reuse the explicit profile arguments across commands.
+
+```powershell
+$AwsArgs = @('--profile', 'brewmaster', '--expected-account', 'ACCOUNT_ID', '--region', 'REGION')
+uv run --locked amplify-ops @AwsArgs identity
+uv run --locked amplify-ops @AwsArgs resources list --view-arn VIEW_ARN --filter 'service:ec2'
+uv run --locked amplify-ops @AwsArgs resources summary --view-arn VIEW_ARN
+uv run --locked amplify-ops @AwsArgs ebs candidates --owner platform
+```
+
+For `resources`, use an existing Resource Explorer view owned by the selected
+account and set `REGION` to the view's region. The commands require
+`resource-explorer-2:GetView`, `resource-explorer-2:GetIndex`, and
+`resource-explorer-2:Search` (for the ListResources API). The list shows ARN, service, type, region,
+and when Resource Explorer last reported the resource. The summary counts
+distinct resources by service and region. Index and view coverage are printed
+with the report. Resource Explorer can lag and coverage depends on the view,
+index, and supported resource types. `--filter` uses native Resource Explorer
+filter syntax. Tag filters require a view that includes tags.
+
+`ebs candidates` uses `ec2:DescribeVolumes` and `ec2:DescribeSnapshots`.
+It shows available, unattached volumes, their size, type, Owner tag, creation
+time, and the most recent matching completed snapshot owned by the account.
+`none_found` means no matching snapshot was returned by the completed check.
+`unknown` means the check did not finish. Creation time is volume age.
+Candidates require owner review. Use the existing `costs` report to compare
+billed services with what Resource Explorer lists.
+
 ## Inventory semantics
 
 - All apps, branches, and jobs use Boto3 paginators. Each region reuses one

@@ -18,7 +18,15 @@ from amplify_ops.comparison import compare_configuration
 from amplify_ops.costs import cost_report
 from amplify_ops.deployments import DeploymentBlocked, create_plan, execute_plan, load_plan
 from amplify_ops.doctor import collect_checks
-from amplify_ops.inventory import collect_inventory, timestamp
+from amplify_ops.inventory import (
+    collect_cloudtrail_changes,
+    collect_cloudwatch_alarms,
+    collect_ebs_candidates,
+    collect_ec2_inventory,
+    collect_inventory,
+    collect_resources,
+    timestamp,
+)
 from amplify_ops.investigation import investigate_job
 from amplify_ops.models import (
     Comparison,
@@ -40,6 +48,16 @@ from amplify_ops.stale import stale_environments
 
 app = typer.Typer(no_args_is_help=True, pretty_exceptions_enable=False)
 diagnostics = Console(stderr=True, markup=False, highlight=False)
+ec2 = typer.Typer(no_args_is_help=True, help="Read-only EC2 reports.")
+cloudwatch = typer.Typer(no_args_is_help=True, help="Read-only CloudWatch reports.")
+cloudtrail = typer.Typer(no_args_is_help=True, help="Read-only CloudTrail reports.")
+app.add_typer(ec2, name="ec2")
+app.add_typer(cloudwatch, name="cloudwatch")
+app.add_typer(cloudtrail, name="cloudtrail")
+resources = typer.Typer(no_args_is_help=True, help="Read-only Resource Explorer reports.")
+ebs = typer.Typer(no_args_is_help=True, help="Read-only EBS reports.")
+app.add_typer(resources, name="resources")
+app.add_typer(ebs, name="ebs")
 
 
 class OutputFormat(StrEnum):
@@ -67,7 +85,7 @@ def configure(
         list[str] | None, typer.Option(help="Selected AWS region; repeat for inventory.")
     ] = None,
 ) -> None:
-    """Check local setup, verify AWS identity, and report on Amplify resources."""
+    """Check local setup, verify AWS identity, and report on AWS resources."""
     if profile is not None and (
         not profile.strip()
         or "<" in profile
@@ -267,6 +285,165 @@ def emit_report(
     if not report.complete:
         diagnostics.print("PARTIAL report: results are incomplete.")
         raise typer.Exit(3)
+
+
+@ec2.command("inventory")
+def ec2_inventory(
+    ctx: typer.Context,
+    owner: Annotated[str | None, typer.Option(help="Filter by Owner tag.")] = None,
+    environment: Annotated[str | None, typer.Option(help="Filter by Environment tag.")] = None,
+    format: OutputFormat = OutputFormat.table,
+    output: Path | None = None,
+) -> None:
+    """List EC2 instances, health checks, and attached EBS volume IDs."""
+    require_aws_options(ctx.obj.profile, ctx.obj.expected_account, ctx.obj.regions)
+    try:
+        report = collect_ec2_inventory(
+            verified_access(ctx.obj), ctx.obj.regions, owner, environment
+        )
+    except AuthenticationFailure as error:
+        diagnostics.print(str(error))
+        raise typer.Exit(1) from None
+    emit_report(report, format, output)
+
+
+class AlarmState(StrEnum):
+    ok = "OK"
+    alarm = "ALARM"
+    insufficient_data = "INSUFFICIENT_DATA"
+
+
+@cloudwatch.command("alarms")
+def cloudwatch_alarms(
+    ctx: typer.Context,
+    state: Annotated[AlarmState | None, typer.Option(help="Filter by current state.")] = None,
+    alarm_name: Annotated[
+        str | None,
+        typer.Option(help="Exact alarm name with recent state history."),
+    ] = None,
+    format: OutputFormat = OutputFormat.table,
+    output: Path | None = None,
+) -> None:
+    """List CloudWatch alarm states and whether actions are enabled."""
+    if alarm_name is not None and not 1 <= len(alarm_name) <= 255:
+        raise typer.BadParameter(
+            "Provide an alarm name of 1 to 255 characters.", param_hint="--alarm-name"
+        )
+    require_aws_options(ctx.obj.profile, ctx.obj.expected_account, ctx.obj.regions)
+    try:
+        report = collect_cloudwatch_alarms(
+            verified_access(ctx.obj), ctx.obj.regions, state, alarm_name
+        )
+    except AuthenticationFailure as error:
+        diagnostics.print(str(error))
+        raise typer.Exit(1) from None
+    emit_report(report, format, output)
+
+
+@cloudtrail.command("changes")
+def cloudtrail_changes(
+    ctx: typer.Context,
+    hours: Annotated[int, typer.Option(min=1, max=2160, help="Hours of event history.")] = 24,
+    limit: Annotated[
+        int,
+        typer.Option(min=1, max=500, help="Events scanned per region before resource filtering."),
+    ] = 100,
+    resource: Annotated[
+        str | None,
+        typer.Option(help="Filter by exact CloudTrail resource name or ID."),
+    ] = None,
+    format: OutputFormat = OutputFormat.table,
+    output: Path | None = None,
+) -> None:
+    """Show recent CloudTrail management write events with selected metadata."""
+    if resource == "":
+        raise typer.BadParameter("Provide a nonempty resource name or ID.", param_hint="--resource")
+    require_aws_options(ctx.obj.profile, ctx.obj.expected_account, ctx.obj.regions)
+    try:
+        report = collect_cloudtrail_changes(
+            verified_access(ctx.obj), ctx.obj.regions, hours, limit, resource
+        )
+    except AuthenticationFailure as error:
+        diagnostics.print(str(error))
+        raise typer.Exit(1) from None
+    emit_report(report, format, output)
+
+
+def resource_explorer_report(
+    settings: Settings, view_arn: str, resource_filter: str | None, *, summary: bool
+) -> Report:
+    require_aws_options(settings.profile, settings.expected_account, settings.regions)
+    if len(settings.regions) != 1:
+        raise typer.BadParameter(
+            "Select the region of the Resource Explorer view.", param_hint="--region"
+        )
+    match = re.fullmatch(
+        r"arn:[a-z0-9-]+:resource-explorer-2:([a-z0-9-]+):([0-9]{12}):view/[A-Za-z0-9_-]+/[A-Za-z0-9-]+",
+        view_arn,
+    )
+    if match is None or match.groups() != (settings.regions[0], settings.expected_account):
+        raise typer.BadParameter(
+            "Use an existing Resource Explorer view ARN in the selected region and account.",
+            param_hint="--view-arn",
+        )
+    try:
+        return collect_resources(
+            verified_access(settings),
+            settings.regions[0],
+            view_arn,
+            resource_filter,
+            summary=summary,
+        )
+    except AuthenticationFailure as error:
+        diagnostics.print(str(error))
+        raise typer.Exit(1) from None
+
+
+@resources.command("list")
+def resources_list(
+    ctx: typer.Context,
+    view_arn: Annotated[str, typer.Option(help="ARN of an existing Resource Explorer view.")],
+    resource_filter: Annotated[
+        str | None, typer.Option("--filter", help="Resource Explorer filters such as service:ec2.")
+    ] = None,
+    format: OutputFormat = OutputFormat.table,
+    output: Path | None = None,
+) -> None:
+    """List resources visible through a Resource Explorer view."""
+    report = resource_explorer_report(ctx.obj, view_arn, resource_filter, summary=False)
+    emit_report(report, format, output)
+
+
+@resources.command("summary")
+def resources_summary(
+    ctx: typer.Context,
+    view_arn: Annotated[str, typer.Option(help="ARN of an existing Resource Explorer view.")],
+    resource_filter: Annotated[
+        str | None, typer.Option("--filter", help="Resource Explorer filters such as service:ec2.")
+    ] = None,
+    format: OutputFormat = OutputFormat.table,
+    output: Path | None = None,
+) -> None:
+    """Count visible resources by service and region."""
+    report = resource_explorer_report(ctx.obj, view_arn, resource_filter, summary=True)
+    emit_report(report, format, output)
+
+
+@ebs.command("candidates")
+def ebs_candidates(
+    ctx: typer.Context,
+    owner: Annotated[str | None, typer.Option(help="Filter by Owner tag.")] = None,
+    format: OutputFormat = OutputFormat.table,
+    output: Path | None = None,
+) -> None:
+    """List unattached EBS volumes and their observed snapshot coverage."""
+    require_aws_options(ctx.obj.profile, ctx.obj.expected_account, ctx.obj.regions)
+    try:
+        report = collect_ebs_candidates(verified_access(ctx.obj), ctx.obj.regions, owner)
+    except AuthenticationFailure as error:
+        diagnostics.print(str(error))
+        raise typer.Exit(1) from None
+    emit_report(report, format, output)
 
 
 @app.command()
