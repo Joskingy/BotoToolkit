@@ -14,7 +14,7 @@ Core milestones 1–7 are implemented. Reporting and `deploy-plan` read AWS;
 | 7. Controlled retry | Expiring reviewed plans, exact confirmation, fresh preflight, persisted local claim, one submission attempt. |
 
 Local `doctor` diagnostics and optional STS-only verification are implemented.
-The optional TUI offers an offline demo and one bounded live Amplify scan in a selected region. See [the TUI guide](docs/tui.md).
+The optional TUI offers an offline demo and bounded, on-demand AWS reports. See [the TUI guide](docs/tui.md).
 The `dev.ps1` helper supports worktree setup, checks, feature PRs, and promotion.
 
 ## Operating limits

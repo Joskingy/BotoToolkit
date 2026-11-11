@@ -23,7 +23,7 @@ Want to explore without AWS access? Try the optional
 [terminal browser](docs/tui.md), which uses synthetic apps and branches:
 `uv sync --locked --extra tui`, then
 `uv run --offline --no-sync amplify-ops tui --demo`. Use `tui --live` for a
-bounded, read-only Amplify scan in one verified AWS region.
+bounded, read-only Amplify, EBS, EC2, CloudWatch, CloudTrail, and Resource Explorer reports.
 
 Install Python 3.15 or newer and [uv](https://docs.astral.sh/uv/getting-started/installation/).
 The repository pins the 3.15 series in `.python-version`; commit `uv.lock`.

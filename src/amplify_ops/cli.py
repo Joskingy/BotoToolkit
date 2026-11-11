@@ -116,9 +116,13 @@ def require_aws_options(profile: str | None, account: str | None, regions: list[
 def tui(
     ctx: typer.Context,
     demo: Annotated[bool, typer.Option(help="Browse built-in synthetic data offline.")] = False,
-    live: Annotated[bool, typer.Option(help="Scan Amplify once in one AWS region.")] = False,
+    live: Annotated[bool, typer.Option(help="Browse read-only reports in one AWS region.")] = False,
+    view_arn: Annotated[
+        str | None,
+        typer.Option(help="Existing Resource Explorer view for its optional live reports."),
+    ] = None,
 ) -> None:
-    """Open the optional terminal browser for offline demo or live Amplify inventory."""
+    """Open the optional terminal browser for offline demo or live AWS reports."""
     if demo == live:
         raise typer.BadParameter("Choose exactly one of --demo and --live.")
     settings: Settings = ctx.obj
@@ -128,6 +132,10 @@ def tui(
             raise typer.BadParameter("Use the local brewmaster profile.", param_hint="--profile")
         if len(settings.regions) != 1:
             raise typer.BadParameter("Live TUI requires exactly one region.", param_hint="--region")
+    if view_arn is not None:
+        if not live:
+            raise typer.BadParameter("Use this option with --live.", param_hint="--view-arn")
+        validate_resource_view(settings, view_arn)
     if importlib.util.find_spec("textual") is None:
         diagnostics.print(
             "Install the TUI extra from your trusted checkout: uv sync --locked --extra tui."
@@ -137,14 +145,47 @@ def tui(
         diagnostics.print("TUI requires an interactive terminal. Use existing table/JSON commands.")
         raise typer.Exit(2)
     # Lazy import keeps normal CLI commands independent of the optional UI dependency.
-    from amplify_ops.tui import InventoryBrowser
+    from amplify_ops.tui import InventoryBrowser, View
 
-    def load_inventory(cancelled: Callable[[], bool]) -> Inventory:
-        access = AwsAccess.connect(settings.profile, settings.expected_account, settings.regions[0])
+    access: AwsAccess | None = None
+
+    def load_view(
+        view: View, alarm_name: str | None, cancelled: Callable[[], bool]
+    ) -> Inventory | Report:
+        nonlocal access
+        region = settings.regions[0]
+        if access is None:
+            access = AwsAccess.connect(settings.profile, settings.expected_account, region)
+        else:
+            access.reverify(region)
         budget = InventoryBudget(100, monotonic() + 30, cancelled)
-        return collect_inventory(access, settings.regions, budget=budget)
+        match view:
+            case View.AMPLIFY:
+                return collect_inventory(access, settings.regions, budget=budget)
+            case View.EBS:
+                return collect_ebs_candidates(access, settings.regions, None, budget=budget)
+            case View.EC2:
+                return collect_ec2_inventory(access, settings.regions, None, None, budget=budget)
+            case View.CLOUDWATCH:
+                return collect_cloudwatch_alarms(
+                    access, settings.regions, None, alarm_name, budget=budget
+                )
+            case View.CLOUDTRAIL:
+                return collect_cloudtrail_changes(
+                    access, settings.regions, 24, 100, None, budget=budget
+                )
+            case View.RESOURCES | View.RESOURCE_COUNTS:
+                assert view_arn is not None
+                return collect_resources(
+                    access,
+                    region,
+                    view_arn,
+                    None,
+                    summary=view is View.RESOURCE_COUNTS,
+                    budget=budget,
+                )
 
-    browser = InventoryBrowser(load_inventory if live else None)
+    browser = InventoryBrowser(load_view if live else None, resource_explorer=view_arn is not None)
     browser.run()
     if browser.return_code:
         raise typer.Exit(browser.return_code)
@@ -388,10 +429,7 @@ def cloudtrail_changes(
     emit_report(report, format, output)
 
 
-def resource_explorer_report(
-    settings: Settings, view_arn: str, resource_filter: str | None, *, summary: bool
-) -> Report:
-    require_aws_options(settings.profile, settings.expected_account, settings.regions)
+def validate_resource_view(settings: Settings, view_arn: str) -> None:
     if len(settings.regions) != 1:
         raise typer.BadParameter(
             "Select the region of the Resource Explorer view.", param_hint="--region"
@@ -405,6 +443,13 @@ def resource_explorer_report(
             "Use an existing Resource Explorer view ARN in the selected region and account.",
             param_hint="--view-arn",
         )
+
+
+def resource_explorer_report(
+    settings: Settings, view_arn: str, resource_filter: str | None, *, summary: bool
+) -> Report:
+    require_aws_options(settings.profile, settings.expected_account, settings.regions)
+    validate_resource_view(settings, view_arn)
     try:
         return collect_resources(
             verified_access(settings),
