@@ -14,11 +14,11 @@ without credentials or network access. Press Ctrl+R to reset the sample data.
 ## Live reports
 
 Replace `ACCOUNT_ID` with your independently verified account ID and `REGION`
-with the AWS region to scan. Use the local `brewmaster` profile and grant the
+with the AWS region to scan. Replace `PROFILE_NAME` with your profile and grant the
 read permissions for the reports you use.
 
 ```powershell
-uv run --no-sync amplify-ops --profile brewmaster --expected-account ACCOUNT_ID --region REGION tui --live
+uv run --no-sync amplify-ops --profile PROFILE_NAME --expected-account ACCOUNT_ID --region REGION tui --live
 ```
 
 The browser starts with Amplify. Press F2 or click the highlighted selector
