@@ -322,11 +322,16 @@ def test_live_views_load_on_selection_and_reverify_before_each_scan(
 
             await finish_scan()
             assert called_services() == ["sts", "amplify"]
-            picker.focus()
-            await pilot.press("enter", "escape")
+            assert str(browser.query_one("#view-label", Static).content) == "AWS view"
+            await pilot.click("#view")
+            assert picker.expanded
+            await pilot.press("escape")
+            await pilot.press("slash", "f2")
+            assert picker.expanded
+            await pilot.press("escape")
             assert not picker.expanded
             assert called_services() == ["sts", "amplify"]
-            await pilot.press("enter", "down", "enter")
+            await pilot.press("f2", "down", "enter")
             await finish_scan()
             assert picker.value is View.EBS
             assert table.row_count == 1 and volume in details(browser)
@@ -357,6 +362,8 @@ def test_live_views_load_on_selection_and_reverify_before_each_scan(
             await select(View.EBS)
             assert "Account mismatch" in details(browser)
             assert picker.disabled
+            await pilot.press("f2")
+            assert not picker.expanded
             assert called_services() == [
                 "sts",
                 "amplify",

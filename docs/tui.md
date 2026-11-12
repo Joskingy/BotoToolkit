@@ -21,8 +21,9 @@ read permissions for the reports you use.
 uv run --no-sync amplify-ops --profile brewmaster --expected-account ACCOUNT_ID --region REGION tui --live
 ```
 
-The browser starts with Amplify. Use the view picker above the search box to
-load another report. Search filters the collected rows and their details locally.
+The browser starts with Amplify. Press F2 or click the highlighted selector
+beside **AWS view** above the search box. Use Up/Down and Enter to load a report, or Esc to
+close the menu. Search filters the collected rows and their details locally.
 
 - **Unattached EBS volumes** are ordered by size. Details show the owner,
   creation time, and latest completed snapshot found by the check. An
