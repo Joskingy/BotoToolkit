@@ -9,6 +9,8 @@ import tempfile
 import zipfile
 from pathlib import Path, PurePosixPath
 
+from rich.text import Text
+
 ROOT = Path(__file__).resolve().parents[1]
 PRIVATE_PARTS = {
     ".aws",
@@ -130,7 +132,7 @@ def smoke_install(wheel: Path, requirements: Path, target: Path, env: dict[str, 
             timeout=30,
         )
         assert result.returncode == 2 and not result.stdout
-        assert "--profile" in result.stderr
+        assert "--profile" in Text.from_ansi(result.stderr).plain
 
 
 def main() -> None:
