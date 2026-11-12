@@ -9,8 +9,8 @@ from rich.text import Text
 from textual import on, work
 from textual.app import App, ComposeResult
 from textual.binding import Binding
-from textual.containers import VerticalScroll
-from textual.widgets import DataTable, Footer, Header, Input, Select, Static
+from textual.containers import Horizontal, VerticalScroll
+from textual.widgets import DataTable, Footer, Header, Input, Label, Select, Static
 from textual.worker import Worker, WorkerState, get_current_worker
 
 from amplify_ops.aws import AuthenticationFailure
@@ -93,7 +93,26 @@ class InventoryBrowser(App[None]):
     CSS = """
     Screen { background: $surface; }
     #banner { height: auto; padding: 0 1; background: $primary; text-style: bold; }
-    #view, #search { margin: 0 1; }
+    #view-bar { height: auto; margin: 0 1; align-vertical: middle; }
+    #view-label { width: auto; padding-right: 1; text-style: bold; }
+    #view { width: 1fr; max-width: 38; }
+    #view > SelectCurrent {
+        padding: 0 1;
+        background: $accent;
+    }
+    #view > SelectCurrent #label, #view > SelectCurrent .arrow {
+        color: auto 100%;
+        text-style: bold;
+    }
+    #view > SelectCurrent:hover, #view:focus-within > SelectCurrent {
+        background-tint: $foreground 20%;
+    }
+    #view:focus-within > SelectCurrent #label,
+    #view > SelectCurrent #label:hover, #view > SelectCurrent .arrow:hover {
+        text-style: bold underline;
+    }
+    #view:disabled > SelectCurrent { background: $surface-lighten-1; }
+    #search { margin: 0 1; }
     #summary { height: 1; margin: 0 1; }
     #resources { height: 1fr; min-height: 5; margin: 0 1; border: round $primary; }
     #detail-scroll { height: 1fr; min-height: 5; max-height: 11;
@@ -101,6 +120,7 @@ class InventoryBrowser(App[None]):
     #details { height: auto; padding: 0 1; }
     """
     BINDINGS = [
+        Binding("f2", "open_views", "Views", priority=True),
         Binding("slash", "search", "Search"),
         Binding("escape", "reset_search", "Clear search", priority=True),
         Binding("ctrl+r", "reset_demo", "Reset demo", priority=True),
@@ -135,17 +155,19 @@ class InventoryBrowser(App[None]):
         )
         yield Static(banner, id="banner", markup=False)
         if self.load_view is not None:
-            yield Select(
-                [
-                    (view.value, view)
-                    for view in View
-                    if self.resource_explorer or view not in RESOURCE_VIEWS
-                ],
-                allow_blank=False,
-                value=self.view,
-                id="view",
-                compact=True,
-            )
+            with Horizontal(id="view-bar"):
+                yield Label("AWS view", id="view-label")
+                yield Select(
+                    [
+                        (view.value, view)
+                        for view in View
+                        if self.resource_explorer or view not in RESOURCE_VIEWS
+                    ],
+                    allow_blank=False,
+                    value=self.view,
+                    id="view",
+                    compact=True,
+                )
         yield Input(placeholder="Search displayed inventory…", id="search")
         yield Static(id="summary")
         yield DataTable(id="resources", cursor_type="row", zebra_stripes=True)
@@ -193,6 +215,7 @@ class InventoryBrowser(App[None]):
         self.history_alarm = alarm_name
         self.alarm_history = None
         self.query_one(Select).disabled = True
+        self.refresh_bindings()
         label = "alarm history" if alarm_name is not None else self.view.value
         self.empty_message = f"Loading {label}…"
         self.query_one("#banner", Static).update(f"LIVE | Read-only | {self.empty_message}")
@@ -222,6 +245,7 @@ class InventoryBrowser(App[None]):
         self.scanning = False
         self.identity_failed = isinstance(result, AuthenticationFailure)
         self.query_one(Select).disabled = self.identity_failed
+        self.refresh_bindings()
         if isinstance(result, (str, AuthenticationFailure)):
             self.scan_exit_code = 1
             self.query_one("#banner", Static).update("LIVE | Read-only | Scan failed")
@@ -394,6 +418,11 @@ class InventoryBrowser(App[None]):
         self.query_one("#details", Static).update(Text("\n".join(plain(line) for line in lines)))
         self.query_one("#detail-scroll", VerticalScroll).scroll_home(animate=False)
 
+    def action_open_views(self) -> None:
+        picker = self.query_one(Select)
+        picker.focus()
+        picker.action_show_overlay()
+
     def action_search(self) -> None:
         self.query_one(Input).focus()
 
@@ -408,6 +437,10 @@ class InventoryBrowser(App[None]):
         self.query_one(DataTable).focus()
 
     def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
+        if action == "open_views":
+            if self.load_view is None:
+                return False
+            return None if self.scanning or self.identity_failed else True
         if action == "reset_demo" and self.load_view is not None:
             return False
         return super().check_action(action, parameters)
