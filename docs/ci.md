@@ -38,7 +38,9 @@ paths, then tests two fresh environments: the wheel and a wheel rebuilt from the
 source archive. Runtime dependencies are exported from uv.lock and installed with
 hash verification. Local package installs use `--no-deps`. Import checks use
 isolated Python and verify package locations inside the fresh environment;
-both `amplify-ops --help` and `bototoolkit` must exit successfully. Temporary
+both `bototoolkit` and `amplify-ops` must support help, offline doctor JSON,
+and missing-option errors. Base installs explain the missing TUI extra; the
+extra is then installed and the demo is exercised without an AWS session. Temporary
 environments are removed afterward. Initial execution may download locked wheels
 and the build backend; no live AWS calls are involved.
 

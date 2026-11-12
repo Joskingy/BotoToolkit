@@ -9,6 +9,8 @@ import tempfile
 import zipfile
 from pathlib import Path, PurePosixPath
 
+from rich.text import Text
+
 ROOT = Path(__file__).resolve().parents[1]
 PRIVATE_PARTS = {
     ".aws",
@@ -90,36 +92,47 @@ def smoke_install(wheel: Path, requirements: Path, target: Path, env: dict[str, 
         env=env,
     )
     suffix = ".exe" if os.name == "nt" else ""
-    run(str(binaries / f"amplify-ops{suffix}"), "--help", cwd=target.parent, env=env)
-    run(str(binaries / f"amplify-ops{suffix}"), "tui", "--help", cwd=target.parent, env=env)
-    # Base installs must remain usable without the optional terminal framework.
-    result = subprocess.run(
-        [str(binaries / f"amplify-ops{suffix}"), "tui", "--demo"],
-        cwd=target.parent,
-        env=env,
-        capture_output=True,
-        text=True,
-        timeout=30,
-    )
-    assert result.returncode == 1 and "Install the TUI extra" in result.stderr
-    assert not result.stdout
-    # Exercise doctor outside any checkout, with no AWS options or repository tools.
-    result = subprocess.run(
-        [str(binaries / f"amplify-ops{suffix}"), "doctor", "--format", "json"],
-        cwd=target.parent,
-        env=env,
-        capture_output=True,
-        text=True,
-        check=True,
-        timeout=30,
-    )
-    report = json.loads(result.stdout)
-    assert report["report_type"] == "doctor" and report["schema_version"] == 1
-    assert report["complete"] is True and not result.stderr
-    statuses = {check["name"]: check["status"] for check in report["checks"]}
-    assert statuses["identity"] == statuses["project_files"] == "skip"
-    assert not any(status == "fail" for status in statuses.values())
-    run(str(binaries / f"bototoolkit{suffix}"), cwd=target.parent, env=env)
+    for name in ("bototoolkit", "amplify-ops"):
+        command = str(binaries / f"{name}{suffix}")
+        run(command, "--help", cwd=target.parent, env=env)
+        run(command, "tui", "--help", cwd=target.parent, env=env)
+        # Base installs must remain usable without the optional terminal framework.
+        result = subprocess.run(
+            [command, "tui", "--demo"],
+            cwd=target.parent,
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        assert result.returncode == 1 and "Install the TUI extra" in result.stderr
+        assert not result.stdout
+        # Exercise doctor outside any checkout, with no AWS options or repository tools.
+        result = subprocess.run(
+            [command, "doctor", "--format", "json"],
+            cwd=target.parent,
+            env=env,
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=30,
+        )
+        report = json.loads(result.stdout)
+        assert report["report_type"] == "doctor" and report["schema_version"] == 1
+        assert report["complete"] is True and not result.stderr
+        statuses = {check["name"]: check["status"] for check in report["checks"]}
+        assert statuses["identity"] == statuses["project_files"] == "skip"
+        assert not any(status == "fail" for status in statuses.values())
+        result = subprocess.run(
+            [command, "identity"],
+            cwd=target.parent,
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        assert result.returncode == 2 and not result.stdout
+        assert "--profile" in Text.from_ansi(result.stderr).plain
 
 
 def main() -> None:

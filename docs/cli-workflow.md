@@ -1,10 +1,10 @@
 # CLI workflow
 
-These diagrams describe the AWS operations in `amplify-ops`. The separate
-legacy `bototoolkit` entry point prints a greeting and does not run this workflow.
+These diagrams describe the AWS operations in `bototoolkit` and its compatible
+`amplify-ops` command. Both entry points run the same workflow.
 AWS operations require an explicit profile, expected account, and region. Local
 diagnostics and command help are outside the workflow shown here.
-Use the local `brewmaster` profile and obtain the account and region from private
+Select your local AWS profile and obtain the account and region from private
 settings or the operator.
 
 ## Command overview
@@ -29,8 +29,8 @@ flowchart TD
 `investigate` reads bounded logs only when `--inspect-logs` is specified. `stale`
 also gathers GitHub evidence; missing evidence can make a report partial. For
 `deploy`, plan loading and confirmation checks happen before identity verification.
-The project convention requires `brewmaster`; the CLI validates that a profile is
-explicit but does not restrict its name. Verification details and diagnostics go
+The CLI requires an explicit profile but does not restrict its name.
+Verification details and diagnostics go
 to stderr; JSON report output goes to stdout. The `identity` command also prints
 identity details to stdout. The optional output file must be new. A partial report
 exits with code 3; invalid arguments exit with code 2, while authentication,

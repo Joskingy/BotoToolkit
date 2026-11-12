@@ -77,9 +77,7 @@ class Settings:
 @app.callback()
 def configure(
     ctx: typer.Context,
-    profile: Annotated[
-        str | None, typer.Option(help="Explicit local AWS profile; use brewmaster here.")
-    ] = None,
+    profile: Annotated[str | None, typer.Option(help="Explicit local AWS profile name.")] = None,
     expected_account: Annotated[
         str | None, typer.Option(help="Expected 12-digit AWS account ID.")
     ] = None,
@@ -128,8 +126,6 @@ def tui(
     settings: Settings = ctx.obj
     if live:
         require_aws_options(settings.profile, settings.expected_account, settings.regions)
-        if settings.profile != "brewmaster":
-            raise typer.BadParameter("Use the local brewmaster profile.", param_hint="--profile")
         if len(settings.regions) != 1:
             raise typer.BadParameter("Live TUI requires exactly one region.", param_hint="--region")
     if view_arn is not None:

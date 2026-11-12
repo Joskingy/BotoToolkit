@@ -1,37 +1,62 @@
-# amplify-ops
+# BotoToolkit
 
-A Python CLI for local setup diagnostics, verified AWS identity, Amplify **Hosting** inventory,
-deployment investigation, redacted configuration comparison, AppSync expiration,
-costs, stale-environment evidence, and explicitly reviewed deployment retries.
-Milestone 1 lists apps, branches, and deployment job summaries across explicitly
-selected regions. It does not discover every supporting backend resource.
-Milestone 2 adds job/step investigation and optional bounded log inspection.
-Milestone 3 compares dev/main (or another pair) using AWS configuration only.
-Milestones 4–7 add `api-keys`, `costs`, `stale`, `deploy-plan`, and `deploy`.
+Inspect AWS through a command-line interface or an optional terminal browser.
+Reports cover Amplify deployments and configuration, EC2 instances, unattached
+EBS volumes, CloudWatch alarms, CloudTrail changes, Resource Explorer inventory,
+AppSync key expiry, costs, and stale environments.
+
+Run `bototoolkit` with a command. Existing `amplify-ops` commands keep working
+with the same options, output, and exit codes. Both names launch the same CLI.
 All commands except **deploy** are read-only. Deploy submits an explicitly
 reviewed RETRY; no live writes were performed during implementation.
 
 See [remaining command details](docs/remaining-commands.md) for AppSync, costs,
 stale evidence, deployment confirmation/audit behavior, and added IAM policies.
-Start with the [PowerShell quick start](docs/quick-start.md) for setup and command examples.
+Start with the [BotoToolkit user guide](docs/quick-start.md) for requirements,
+installation, AWS setup, and CLI and terminal browser examples.
 See the [CLI workflow diagrams](docs/cli-workflow.md) for the identity gate,
 read-only commands, and controlled retry path.
+
+## 0.2.0 (unreleased)
+
+This release focuses on a first-time user's path from installation to a verified
+AWS report. Release artifacts and publication are pending review.
+
+- `bototoolkit` launches the full CLI; `amplify-ops` remains compatible.
+- Live TUI accepts the user's chosen profile. Explicit account and region
+  selection, STS verification before each scan, and read-only access remain.
+- Checkout installation pins stable Python 3.15.0 to match CI.
+- The public user guide covers setup, sign-in, first reports, demo/live TUI,
+  exports, and troubleshooting.
+- Installation checks exercise both command names from a wheel and a rebuilt
+  source distribution, including offline diagnostics and missing AWS options.
+
+**Requirements and limits:** Python >=3.15 is required; Python 3.15.0 is the
+current validation target. CI covers Windows and Ubuntu; macOS is not covered
+by the current CI matrix. New release changes must pass those checks before
+publication. The TUI extra is optional. Live TUI scans one selected region on
+demand, with a 100-call budget and a 30-second deadline for starting new calls;
+in-flight requests may finish later. It is not continuous monitoring. Resource
+Explorer covers indexed resources allowed by its view. Partial results are
+incomplete evidence. Cost Explorer requests can incur AWS charges. Reports
+contain account metadata and should remain private.
 
 ## Setup
 
 Want to explore without AWS access? Try the optional
 [terminal browser](docs/tui.md), which uses synthetic apps and branches:
 `uv sync --locked --extra tui`, then
-`uv run --offline --no-sync amplify-ops tui --demo`. Use `tui --live` for a
+`uv run --offline --no-sync bototoolkit tui --demo`. Use `tui --live` for a
 bounded, read-only Amplify, EBS, EC2, CloudWatch, CloudTrail, and Resource Explorer reports.
 
 Install Python 3.15 or newer and [uv](https://docs.astral.sh/uv/getting-started/installation/).
-The repository pins the 3.15 series in `.python-version`; commit `uv.lock`.
+The repository pins stable Python 3.15.0 in `.python-version` and dependencies
+in `uv.lock`.
 
 ```powershell
 uv sync --locked
-uv run --locked amplify-ops --help
-uv run --offline --no-sync amplify-ops doctor --project .
+uv run --locked bototoolkit --help
+uv run --offline --no-sync bototoolkit doctor --project .
 ```
 
 For contributors, cloning the repository and running these uv commands is the
@@ -40,20 +65,21 @@ project in editable mode. No manual virtual-environment activation is required.
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the complete first-clone checklist,
 security-hook setup, tests, and folder responsibilities.
 
-For operators who only need the CLI, a versioned tool installation is a useful
-future distribution path. From a trusted checkout, `uv tool install --python 3.15 .`
-installs the command in a separate environment; then use `amplify-ops --help`.
+For operators who want a standalone command, see
+[installation from a checkout or release wheel](CONTRIBUTING.md#distribution-for-operators).
+From a trusted checkout, `uv tool install --python 3.15.0 .`
+installs the command in a separate environment; then use `bototoolkit --help`.
 This resolves dependencies from package metadata, not this checkout's uv.lock.
 Use the locked checkout workflow when exact development dependency versions
 matter. No public package or GitHub release is available yet; do not assume a
 similarly named package on a registry is this project.
 
-The original `src/bototoolkit` scaffold and `bototoolkit` entry point are preserved;
-the project distribution and new command are named `amplify-ops`.
+The Python distribution remains named `amplify-ops`. Both Python packages remain
+included; the `bototoolkit` console command now opens the working CLI.
 
 ## Check your setup
 
-Run `amplify-ops doctor` from an installed tool, or use the offline uv command
+Run `bototoolkit doctor` from an installed tool, or use the offline uv command
 above from a clone. It reports prerequisite checks and suggested fixes as a
 table. Add `--format json` for structured results. `--project .` also checks the
 repository lockfile and installed dependencies using offline uv commands.
@@ -68,27 +94,27 @@ names, local paths, credential values, and raw errors. See the
 
 ## Authentication and local profile mapping
 
-This workspace uses local profile **brewmaster**. Configure/sign in to that profile
+Replace **PROFILE_NAME** with your local AWS profile name. Configure/sign in
 through your normal AWS CLI or IAM Identity Center workflow. Never paste credentials
 into source code, CLI options, reports, issues, or chat.
 
 AWS commands and `doctor --online` require `--profile`, `--expected-account`,
 and `--region`. Offline `doctor` and command help work without AWS options.
-ACCOUNT_ID, APP_ID, API_ID, and OWNER/REPOSITORY are placeholders. Resolve
+PROFILE_NAME, ACCOUNT_ID, APP_ID, API_ID, and OWNER/REPOSITORY are placeholders. Resolve
 them locally before running any command; never commit the resolved values. Use the intended account ID as an independent assertion; do not
 derive it from STS merely to make the assertion pass.
 
 ```powershell
-uv run amplify-ops --profile brewmaster --expected-account ACCOUNT_ID --region us-east-1 identity
-uv run amplify-ops --profile brewmaster --expected-account ACCOUNT_ID --region us-east-1 inventory --format table
-uv run amplify-ops --profile brewmaster --expected-account ACCOUNT_ID --region us-east-1 inventory --format json --output inventory.json
+uv run amplify-ops --profile PROFILE_NAME --expected-account ACCOUNT_ID --region us-east-1 identity
+uv run amplify-ops --profile PROFILE_NAME --expected-account ACCOUNT_ID --region us-east-1 inventory --format table
+uv run amplify-ops --profile PROFILE_NAME --expected-account ACCOUNT_ID --region us-east-1 inventory --format json --output inventory.json
 ```
 
 To scan more than one explicitly selected region, repeat the global option
 **before** the command (substitute regions you intend to scan):
 
 ```powershell
-uv run amplify-ops --profile brewmaster --expected-account ACCOUNT_ID --region us-east-1 --region us-west-2 inventory --format json
+uv run amplify-ops --profile PROFILE_NAME --expected-account ACCOUNT_ID --region us-east-1 --region us-west-2 inventory --format json
 ```
 
 One Boto3 session is created with `profile_name` explicitly set. All clients
@@ -112,9 +138,9 @@ Use the same explicit profile, independently confirmed account ID, and region
 options for the read-only operations reports.
 
 ```powershell
-uv run --locked amplify-ops --profile brewmaster --expected-account ACCOUNT_ID --region REGION ec2 inventory --environment dev
-uv run --locked amplify-ops --profile brewmaster --expected-account ACCOUNT_ID --region REGION cloudwatch alarms --state ALARM
-uv run --locked amplify-ops --profile brewmaster --expected-account ACCOUNT_ID --region REGION cloudtrail changes --hours 24 --limit 100
+uv run --locked amplify-ops --profile PROFILE_NAME --expected-account ACCOUNT_ID --region REGION ec2 inventory --environment dev
+uv run --locked amplify-ops --profile PROFILE_NAME --expected-account ACCOUNT_ID --region REGION cloudwatch alarms --state ALARM
+uv run --locked amplify-ops --profile PROFILE_NAME --expected-account ACCOUNT_ID --region REGION cloudtrail changes --hours 24 --limit 100
 ```
 
 - EC2 inventory uses `ec2:DescribeInstances` and `ec2:DescribeInstanceStatus`.
@@ -142,7 +168,7 @@ locked environment with `uv sync --locked`. Resolve the expected account and
 region locally and reuse the explicit profile arguments across commands.
 
 ```powershell
-$AwsArgs = @('--profile', 'brewmaster', '--expected-account', 'ACCOUNT_ID', '--region', 'REGION')
+$AwsArgs = @('--profile', 'PROFILE_NAME', '--expected-account', 'ACCOUNT_ID', '--region', 'REGION')
 uv run --locked amplify-ops @AwsArgs identity
 uv run --locked amplify-ops @AwsArgs resources list --view-arn VIEW_ARN --filter 'service:ec2'
 uv run --locked amplify-ops @AwsArgs resources summary --view-arn VIEW_ARN
@@ -220,8 +246,8 @@ failure; `2` invalid/missing CLI arguments; `3` incomplete inventory/investigati
 ## Redacted dev/main configuration comparison (milestone 3)
 
 ```powershell
-uv run amplify-ops --profile brewmaster --expected-account ACCOUNT_ID --region us-east-1 compare --app-id APP_ID --source dev --target main
-uv run amplify-ops --profile brewmaster --expected-account ACCOUNT_ID --region us-east-1 compare --app-id APP_ID --source dev --target main --format json --output comparison.json
+uv run amplify-ops --profile PROFILE_NAME --expected-account ACCOUNT_ID --region us-east-1 compare --app-id APP_ID --source dev --target main
+uv run amplify-ops --profile PROFILE_NAME --expected-account ACCOUNT_ID --region us-east-1 compare --app-id APP_ID --source dev --target main --format json --output comparison.json
 ```
 
 `--source` defaults to `dev` and `--target` to `main`. Choose any two distinct
@@ -295,8 +321,8 @@ failed. A failed history page prevents selection and produces a partial report;
 it never guesses from the successfully read pages.
 
 ```powershell
-uv run amplify-ops --profile brewmaster --expected-account ACCOUNT_ID --region us-east-1 investigate --app-id APP_ID --branch dev
-uv run amplify-ops --profile brewmaster --expected-account ACCOUNT_ID --region us-east-1 investigate --app-id APP_ID --branch dev --job-id 2 --inspect-logs --format json --output investigation.json
+uv run amplify-ops --profile PROFILE_NAME --expected-account ACCOUNT_ID --region us-east-1 investigate --app-id APP_ID --branch dev
+uv run amplify-ops --profile PROFILE_NAME --expected-account ACCOUNT_ID --region us-east-1 investigate --app-id APP_ID --branch dev --job-id 2 --inspect-logs --format json --output investigation.json
 ```
 
 `--job-id` bypasses history listing and investigates that exact job, including
@@ -422,7 +448,7 @@ role needs these two service actions, not the List* or GetJob actions above.
 
 ## Troubleshooting
 
-- `ProfileNotFound`: confirm `brewmaster` exists in your local AWS config or
+- `ProfileNotFound`: confirm your selected profile exists in your local AWS config or
   credentials mapping and that you run as the intended OS user.
 - Expired credentials/SSO: refresh the selected profile through your normal
   sign-in workflow, then repeat `identity`. There is no automatic profile switch.

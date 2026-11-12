@@ -1,7 +1,7 @@
 [project]
 name = "amplify-ops"
-version = "0.1.0"
-description = "AWS Amplify reports and explicitly reviewed deployment job retries"
+version = "0.2.0"
+description = "Read-only AWS inventory, investigation, and costs with controlled Amplify retries"
 readme = "README.md"
 authors = [
     { name = "Joskingy" }
@@ -14,7 +14,7 @@ dependencies = [
 ]
 
 [project.scripts]
-bototoolkit = "bototoolkit:main"
+bototoolkit = "amplify_ops.cli:app"
 amplify-ops = "amplify_ops.cli:app"
 
 [project.optional-dependencies]
