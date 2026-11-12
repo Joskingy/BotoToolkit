@@ -115,7 +115,7 @@ def test_cli_requires_one_mode_and_real_terminal():
     assert runner.invoke(app, ["tui"]).exit_code == 2
     assert runner.invoke(app, ["tui", "--demo", "--live"]).exit_code == 2
     assert runner.invoke(app, ["tui", "--live"]).exit_code == 2
-    options = ["--profile", "brewmaster", "--expected-account", ACCOUNT, "--region", REGION]
+    options = ["--profile", "test-operator", "--expected-account", ACCOUNT, "--region", REGION]
     result = runner.invoke(app, [*options, "--region", "us-west-2", "tui", "--live"])
     assert result.exit_code == 2
     assert "exactly one region" in result.stderr
@@ -125,7 +125,7 @@ def test_cli_requires_one_mode_and_real_terminal():
     error = Text.from_ansi(result.stderr).plain
     assert "Invalid value for --view-arn" in error
     assert "selected region and account" in error
-    result = runner.invoke(app, ["--profile", "brewmaster", "tui", "--demo"])
+    result = runner.invoke(app, ["--profile", "test-operator", "tui", "--demo"])
     assert result.exit_code == 2
     assert "interactive terminal" in result.stderr
     assert result.stdout == ""
@@ -190,11 +190,13 @@ def test_live_startup_verifies_identity_and_only_scans_once(
     monkeypatch.setattr("amplify_ops.cli.sys.stdin.isatty", lambda: True)
     monkeypatch.setattr("amplify_ops.cli.sys.stdout.isatty", lambda: True)
     monkeypatch.setattr(InventoryBrowser, "run", lambda browser: tui_runner.run(journey(browser)))
-    ctx = typer.Context(typer.main.get_command(app), obj=Settings("brewmaster", ACCOUNT, [REGION]))
+    ctx = typer.Context(
+        typer.main.get_command(app), obj=Settings("test-operator", ACCOUNT, [REGION])
+    )
     with pytest.raises(typer.Exit) as error:
         tui(ctx, live=True)
     assert error.value.exit_code == (3 if matches else 1)
-    factory.assert_called_once_with(profile_name="brewmaster", region_name=REGION)
+    factory.assert_called_once_with(profile_name="test-operator", region_name=REGION)
     assert [call.args[0] for call in session.client.call_args_list] == (
         ["sts", "amplify"] if matches else ["sts"]
     )
@@ -388,8 +390,10 @@ def test_live_views_load_on_selection_and_reverify_before_each_scan(
     monkeypatch.setattr("amplify_ops.cli.sys.stdin.isatty", lambda: True)
     monkeypatch.setattr("amplify_ops.cli.sys.stdout.isatty", lambda: True)
     monkeypatch.setattr(InventoryBrowser, "run", lambda browser: tui_runner.run(journey(browser)))
-    ctx = typer.Context(typer.main.get_command(app), obj=Settings("brewmaster", ACCOUNT, [REGION]))
+    ctx = typer.Context(
+        typer.main.get_command(app), obj=Settings("test-operator", ACCOUNT, [REGION])
+    )
     with pytest.raises(typer.Exit) as error:
         tui(ctx, live=True, view_arn=view_arn)
     assert error.value.exit_code == 1
-    factory.assert_called_once_with(profile_name="brewmaster", region_name=REGION)
+    factory.assert_called_once_with(profile_name="test-operator", region_name=REGION)

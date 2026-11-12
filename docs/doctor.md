@@ -33,12 +33,13 @@ If the CLI cannot import, repair its installation before running diagnostics.
 
 ## Check local AWS settings without signing in
 
-The three AWS options are global and go before the command. Resolve ACCOUNT_ID
-locally using an independently trusted account mapping. Do not commit the
+Replace PROFILE_NAME with your local profile name. The three AWS options go before
+the command. Resolve ACCOUNT_ID locally using an independently trusted account
+mapping. Do not commit the
 resolved value or copy an STS response just to make the comparison pass.
 
 ```powershell
-uv run --offline --no-sync amplify-ops --profile brewmaster --expected-account ACCOUNT_ID --region us-east-1 doctor
+uv run --offline --no-sync amplify-ops --profile PROFILE_NAME --expected-account ACCOUNT_ID --region us-east-1 doctor
 ```
 
 This reads bounded local AWS INI configuration only to determine whether the
@@ -53,7 +54,7 @@ configuration file is allowed; an explicitly configured missing file fails.
 ## Opt in to identity verification
 
 ```powershell
-uv run --offline --no-sync amplify-ops --profile brewmaster --expected-account ACCOUNT_ID --region us-east-1 doctor --online
+uv run --offline --no-sync amplify-ops --profile PROFILE_NAME --expected-account ACCOUNT_ID --region us-east-1 doctor --online
 ```
 
 Online mode requires all three AWS options and exactly one region. After local

@@ -37,7 +37,7 @@ The limits are 20 pages per endpoint, 100 rows per page, and a 20-second shared
 process/pipe deadline. Stdout is bounded to 2 MiB and stderr to 64 KiB while being
 read concurrently; overflow stops the process with a fixed error. These
 are sequential observations, not an atomic repository snapshot. AWS execution
-still requires explicit local profile `brewmaster` and the independent STS gate.
+still requires an explicit local profile and the independent STS gate.
 No GitHub or AWS login is required by the publication scanner.
 
 ## Local checks before the first commit and push

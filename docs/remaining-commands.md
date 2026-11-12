@@ -1,7 +1,7 @@
 # AppSync, costs, stale environments, and controlled retries
 
 These commands reuse explicit profile/account/region arguments and STS gating.
-This workspace uses profile `brewmaster`; resolve ACCOUNT_ID and resource
+Replace `PROFILE_NAME` with your local profile name; resolve ACCOUNT_ID and resource
 placeholders from private local settings. Examples are templates, not live targets.
 Global arguments precede the subcommand. JSON stdout is a single report;
 identity/diagnostics go to stderr. Output files must not already exist.
@@ -15,8 +15,8 @@ wrapper can map a child command's nonzero status to its own nonzero exit status.
 ## AppSync key expiration
 
 ```powershell
-uv run amplify-ops --profile brewmaster --expected-account ACCOUNT_ID --region us-east-1 api-keys --warn-days 30 --format json --output api-keys.json
-uv run amplify-ops --profile brewmaster --expected-account ACCOUNT_ID --region us-east-1 api-keys --api-id API_ID --app-id APP_ID
+uv run amplify-ops --profile PROFILE_NAME --expected-account ACCOUNT_ID --region us-east-1 api-keys --warn-days 30 --format json --output api-keys.json
+uv run amplify-ops --profile PROFILE_NAME --expected-account ACCOUNT_ID --region us-east-1 api-keys --api-id API_ID --app-id APP_ID
 ```
 
 Without API IDs, discover all GraphQL APIs in explicitly selected regions.
@@ -39,8 +39,8 @@ summaries. No key creation, extension, rotation, or deletion is implemented.
 ## Cost reporting
 
 ```powershell
-uv run amplify-ops --profile brewmaster --expected-account ACCOUNT_ID --region us-east-1 costs --start 2026-09-01 --end 2026-10-01 --format json --output costs.json
-uv run amplify-ops --profile brewmaster --expected-account ACCOUNT_ID --region us-east-1 costs --start 2026-09-01 --end 2026-10-01 --tag-key App --tag-value APP_ID
+uv run amplify-ops --profile PROFILE_NAME --expected-account ACCOUNT_ID --region us-east-1 costs --start 2026-09-01 --end 2026-10-01 --format json --output costs.json
+uv run amplify-ops --profile PROFILE_NAME --expected-account ACCOUNT_ID --region us-east-1 costs --start 2026-09-01 --end 2026-10-01 --tag-key App --tag-value APP_ID
 ```
 
 The command checks the clock before querying. Start is inclusive; end is
@@ -76,7 +76,7 @@ commands or requests access keys/tokens. See [GitHub troubleshooting](security.m
 for fixed diagnostic codes and credential-provider behavior.
 
 ```powershell
-uv run amplify-ops --profile brewmaster --expected-account ACCOUNT_ID --region us-east-1 stale --app-id APP_ID --repository OWNER/REPOSITORY --older-than 90 --format json --output stale.json
+uv run amplify-ops --profile PROFILE_NAME --expected-account ACCOUNT_ID --region us-east-1 stale --app-id APP_ID --repository OWNER/REPOSITORY --older-than 90 --format json --output stale.json
 ```
 
 The supplied repository must match the app's GitHub URL (case-insensitive,
@@ -110,7 +110,7 @@ deletion, config updates, and key rotation are not implemented.
 First produce a **read-only** plan:
 
 ```powershell
-uv run amplify-ops --profile brewmaster --expected-account ACCOUNT_ID --region us-east-1 deploy-plan --app-id APP_ID --branch dev --job-id 2 --format json --output retry-plan.json
+uv run amplify-ops --profile PROFILE_NAME --expected-account ACCOUNT_ID --region us-east-1 deploy-plan --app-id APP_ID --branch dev --job-id 2 --format json --output retry-plan.json
 ```
 
 Review the plan file's account, region, app, branch, source job/commit, stage,
@@ -124,7 +124,7 @@ Only when you deliberately authorize a real retry and have the separate write
 permission, use the exact reviewed plan ID (the example contains a placeholder):
 
 ```powershell
-uv run amplify-ops --profile brewmaster --expected-account ACCOUNT_ID --region us-east-1 deploy --plan retry-plan.json --confirm-plan REVIEWED_PLAN_ID
+uv run amplify-ops --profile PROFILE_NAME --expected-account ACCOUNT_ID --region us-east-1 deploy --plan retry-plan.json --confirm-plan REVIEWED_PLAN_ID
 ```
 
 For a production plan, also supply `--confirm-production BRANCH_NAME`. Missing
@@ -212,7 +212,7 @@ branch's jobs; it is never installed or attached by this toolkit:
 
 StartJob authorization is scoped to job ARNs in the service reference. This
 policy grants no StartDeployment, StopJob, delete, IAM, or configuration writes.
-Use a deliberately authorized local brewmaster mapping with that permission
+Use a deliberately authorized local profile with that permission
 only when a real retry is intended. Do not expand the read policy implicitly.
 
 ## Official references checked

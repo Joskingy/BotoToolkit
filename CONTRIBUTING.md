@@ -52,14 +52,15 @@ To reproduce the package job, use uv 0.13.4 and run
 
 ## First live read
 
-Configure/sign in to the intended local AWS profile brewmaster using your
+Replace PROFILE_NAME below with your local AWS profile name.
+Configure/sign in to that profile using your
 normal authentication process. Resolve ACCOUNT_ID independently from private
 operator settings; do not copy an STS response just to satisfy the assertion.
 Replace the example region with the region you intend to inspect.
 
 ```powershell
-uv run --locked amplify-ops --profile brewmaster --expected-account ACCOUNT_ID --region us-east-1 identity
-uv run --locked amplify-ops --profile brewmaster --expected-account ACCOUNT_ID --region us-east-1 inventory
+uv run --locked amplify-ops --profile PROFILE_NAME --expected-account ACCOUNT_ID --region us-east-1 identity
+uv run --locked amplify-ops --profile PROFILE_NAME --expected-account ACCOUNT_ID --region us-east-1 inventory
 ```
 
 For GitHub evidence, sign in with `gh auth login --hostname github.com` and
@@ -103,7 +104,7 @@ Retain them until module size or dependency boundaries justify a split.
 | Location | Responsibility |
 | --- | --- |
 | src/amplify_ops/ | Application code: CLI, AWS/GitHub adapters, reports, domain operations |
-| src/bototoolkit/ | Preserved original scaffold and compatibility entry point |
+| src/bototoolkit/ | Preserved original Python package; both CLI entry points use amplify_ops |
 | tests/ | Offline regression tests and scanner integration tests |
 | scripts/ | Contributor/security tooling, separate from installed application code |
 | docs/ | Detailed command usage, security, and operational guidance |
@@ -133,19 +134,44 @@ Contributors should use the locked checkout workflow above. Operators can use
 a tool installation from a trusted checkout:
 
 ```powershell
-uv tool install --python 3.15 .
-amplify-ops --help
+uv tool install --python 3.15.0 .
+bototoolkit --help
 ```
 
 If needed, run `uv tool update-shell` and open a new shell to make installed
 commands available. A tool install creates its own isolated environment and
 does not follow live source edits or consume the project's development lockfile.
 After an intentional update, reinstall from the reviewed checkout with
-`uv tool install --force --python 3.15 .`.
+`uv tool install --force --python 3.15.0 .`.
 
-A future release process should provide a versioned wheel or a reviewed Git
-tag/commit for tool installations, with release tests and provenance. No package
-publication, remote installation, or release creation is performed here.
+The package remains named `amplify-ops`; both `bototoolkit` and `amplify-ops`
+commands are installed. To include the terminal browser from a trusted checkout,
+use `uv tool install --force --python 3.15.0 '.[tui]'`.
+
+### Versioned wheel installation
+
+Version 0.2.0 is being prepared and is not published yet. Once approved and
+published, download its wheel and SHA256SUMS from this repository's GitHub release.
+Compare `Get-FileHash -Algorithm SHA256` for the downloaded file with SHA256SUMS.
+From the download directory, install the wheel:
+
+```powershell
+uv tool install --python 3.15.0 ./amplify_ops-0.2.0-py3-none-any.whl
+bototoolkit --help
+bototoolkit doctor
+```
+
+For the terminal browser, use
+`uv tool install --force --python 3.15.0 './amplify_ops-0.2.0-py3-none-any.whl[tui]'`.
+Then run `bototoolkit tui --demo`. Tool installation resolves dependencies from
+package metadata; use the locked checkout workflow when exact dependency
+versions are required. Keep using `amplify-ops` if existing scripts depend on it.
+
+Release preparation uses `uv run --locked python scripts/check_distribution.py`
+to validate wheel/source installations. Build the final artifacts from the
+reviewed main commit using `uv build --no-sources`; publish only after approval
+and successful CI. Follow the [release tag rules](docs/branching-and-worktrees.md)
+before creating a tag. Do not publish local working-tree builds as final releases.
 
 References: [uv project synchronization](https://docs.astral.sh/uv/concepts/projects/sync/),
 [uv tool environments](https://docs.astral.sh/uv/concepts/tools/).
