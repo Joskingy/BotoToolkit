@@ -17,10 +17,10 @@ installation, AWS setup, and CLI and terminal browser examples.
 See the [CLI workflow diagrams](docs/cli-workflow.md) for the identity gate,
 read-only commands, and controlled retry path.
 
-## 0.2.0 (unreleased)
+## v0.2.0
 
 This release focuses on a first-time user's path from installation to a verified
-AWS report. Release artifacts and publication are pending review.
+AWS report. [GitHub release and notes](https://github.com/Joskingy/BotoToolkit/releases/tag/v0.2.0)
 
 - `bototoolkit` launches the full CLI; `amplify-ops` remains compatible.
 - Live TUI accepts the user's chosen profile. Explicit account and region
@@ -31,25 +31,44 @@ AWS report. Release artifacts and publication are pending review.
 - Installation checks exercise both command names from a wheel and a rebuilt
   source distribution, including offline diagnostics and missing AWS options.
 
-**Requirements and limits:** Python >=3.15 is required; Python 3.15.0 is the
-current validation target. CI covers Windows and Ubuntu; macOS is not covered
-by the current CI matrix. New release changes must pass those checks before
-publication. The TUI extra is optional. Live TUI scans one selected region on
-demand, with a 100-call budget and a 30-second deadline for starting new calls;
-in-flight requests may finish later. It is not continuous monitoring. Resource
+**Requirements and limits:** Python 3.15 or newer is required. CI validates
+Python 3.15.0 on Windows and Ubuntu. The TUI extra is optional. Live TUI scans
+one selected region on demand, with a 100-call budget and a 30-second deadline
+for starting new calls. In-flight requests may finish later. Resource
 Explorer covers indexed resources allowed by its view. Partial results are
 incomplete evidence. Cost Explorer requests can incur AWS charges. Reports
 contain account metadata and should remain private.
 
 ## Setup
 
-Want to explore without AWS access? Try the optional
-[terminal browser](docs/tui.md), which uses synthetic apps and branches:
-`uv sync --locked --extra tui`, then
-`uv run --offline --no-sync bototoolkit tui --demo`. Use `tui --live` for a
-bounded, read-only Amplify, EBS, EC2, CloudWatch, CloudTrail, and Resource Explorer reports.
+### Install the release wheel
 
 Install Python 3.15 or newer and [uv](https://docs.astral.sh/uv/getting-started/installation/).
+Download the [wheel](https://github.com/Joskingy/BotoToolkit/releases/download/v0.2.0/amplify_ops-0.2.0-py3-none-any.whl)
+and [SHA256SUMS](https://github.com/Joskingy/BotoToolkit/releases/download/v0.2.0/SHA256SUMS)
+into the same folder. Open PowerShell in that folder and check the wheel's SHA-256 hash.
+
+```powershell
+Get-FileHash -Algorithm SHA256 -LiteralPath ./amplify_ops-0.2.0-py3-none-any.whl
+Get-Content -LiteralPath ./SHA256SUMS
+```
+
+Compare the hash with the line for `amplify_ops-0.2.0-py3-none-any.whl` in
+`SHA256SUMS`. Letter case does not matter. If the hashes differ, download both
+files again from the release. Install the wheel after the hashes match.
+
+```powershell
+uv tool install --python 3.15.0 ./amplify_ops-0.2.0-py3-none-any.whl
+bototoolkit --help
+```
+
+The installed command works from any folder. See the [user guide](docs/quick-start.md#2-install-and-check-bototoolkit)
+for setup diagnostics and the optional terminal browser. The reference examples
+below use `uv run` from a source checkout. With the wheel installed, invoke
+`bototoolkit` or `amplify-ops` directly, omitting the `uv run` prefix and its options.
+
+### Work from a source checkout
+
 The repository pins stable Python 3.15.0 in `.python-version` and dependencies
 in `uv.lock`.
 
@@ -65,17 +84,9 @@ project in editable mode. No manual virtual-environment activation is required.
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the complete first-clone checklist,
 security-hook setup, tests, and folder responsibilities.
 
-For operators who want a standalone command, see
-[installation from a checkout or release wheel](CONTRIBUTING.md#distribution-for-operators).
-From a trusted checkout, `uv tool install --python 3.15.0 .`
-installs the command in a separate environment; then use `bototoolkit --help`.
-This resolves dependencies from package metadata, not this checkout's uv.lock.
-Use the locked checkout workflow when exact development dependency versions
-matter. No public package or GitHub release is available yet; do not assume a
-similarly named package on a registry is this project.
-
-The Python distribution remains named `amplify-ops`. Both Python packages remain
-included; the `bototoolkit` console command now opens the working CLI.
+For a source checkout, install the optional terminal browser with
+`uv sync --locked --extra tui`, then run
+`uv run --offline --no-sync bototoolkit tui --demo` to explore synthetic data.
 
 ## Check your setup
 

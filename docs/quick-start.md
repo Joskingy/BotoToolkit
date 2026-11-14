@@ -1,16 +1,16 @@
 # BotoToolkit user guide
 
-Version 0.2.0 (unreleased). Use BotoToolkit to inspect AWS resources,
-deployments, alarms, recent changes, and costs. Run `bototoolkit`; the existing
-`amplify-ops` command remains compatible with the same options and behavior.
+[BotoToolkit v0.2.0](https://github.com/Joskingy/BotoToolkit/releases/tag/v0.2.0)
+helps you inspect AWS resources, deployments, alarms, recent changes, and costs.
+Run `bototoolkit`. The existing `amplify-ops` command keeps the same options and
+behavior.
 The examples use PowerShell.
 
 ## 1. Check the requirements
 
 | You need | When you need it |
 | --- | --- |
-| Git and access to the BotoToolkit repository | To get a checkout |
-| uv and Python 3.15 or newer | To install and run BotoToolkit. uv can install the project's pinned stable Python 3.15.0. |
+| uv and Python 3.15 or newer | To install and run BotoToolkit. uv can install Python 3.15.0 for you. |
 | A configured local AWS profile, the expected account ID, and an AWS region | To run live reports. Ask your AWS administrator for read access to the services you plan to inspect. |
 | AWS CLI v2 | If your approved sign-in uses the AWS CLI, including IAM Identity Center |
 | An interactive terminal | To use the optional terminal browser. Use at least 60 columns by 20 rows. |
@@ -21,36 +21,31 @@ and [AWS CLI v2](https://docs.aws.amazon.com/cli/latest/userguide/getting-starte
 
 ## 2. Install and check BotoToolkit
 
-Open PowerShell and clone the BotoToolkit repository. If you already
-have a checkout, open PowerShell in that folder and continue with `uv sync`.
+From the [v0.2.0 release](https://github.com/Joskingy/BotoToolkit/releases/tag/v0.2.0),
+download `amplify_ops-0.2.0-py3-none-any.whl` and `SHA256SUMS` into the same
+folder. Open PowerShell in that folder and check the wheel's SHA-256 hash.
 
 ```powershell
-git clone https://github.com/Joskingy/BotoToolkit.git
-Set-Location BotoToolkit
+Get-FileHash -Algorithm SHA256 -LiteralPath ./amplify_ops-0.2.0-py3-none-any.whl
+Get-Content -LiteralPath ./SHA256SUMS
 ```
 
-These checkout instructions follow the default branch. Version 0.2.0 is not
-published yet; its new command alias and profile support require the release
-changes. When a versioned release is available, use its reviewed tag for a
-repeatable installation.
-
-Install the locked dependencies and check the installation. uv creates the local
-environment automatically; you do not need to activate it.
+Compare the `Hash` value with the line for `amplify_ops-0.2.0-py3-none-any.whl`
+in `SHA256SUMS`. Letter case does not matter. If the hashes differ, download
+both files again from the release. Once the hashes match, install the wheel and
+run the setup checks.
 
 ```powershell
-uv sync --locked --no-dev
-uv run --no-sync bototoolkit --help
-uv run --offline --no-sync bototoolkit doctor --project .
+uv tool install --python 3.15.0 ./amplify_ops-0.2.0-py3-none-any.whl
+bototoolkit --help
+bototoolkit doctor
 ```
 
-You should see the command list and a setup checklist. Start with any failed
-check. This diagnostic runs locally and can be used before AWS sign-in. See the
-[doctor guide](doctor.md).
-
-Run these `uv run` commands from the checkout folder. For a standalone command
-that works from other folders, see [standalone installation](../CONTRIBUTING.md#distribution-for-operators).
-The package is still named `amplify-ops`; do not install a similarly named
-registry package as a substitute.
+If PowerShell cannot find `bototoolkit`, run `uv tool update-shell`, then open a
+new PowerShell window. You can run `bototoolkit` from any folder. `doctor` checks
+the local installation before AWS sign-in. Start with any failed check. See the
+[doctor guide](doctor.md) for details or [source checkout setup](../README.md#work-from-a-source-checkout)
+if you want to work from the repository.
 
 ## 3. Configure and verify AWS access
 
@@ -85,7 +80,7 @@ $Region = Read-Host 'AWS region to inspect'
 $AwsArgs = @('--profile', $AwsProfile,
   '--expected-account', $AccountId, '--region', $Region)
 
-uv run --no-sync bototoolkit @AwsArgs identity
+bototoolkit @AwsArgs identity
 ```
 
 Check that the printed account and caller ARN match the account and role you
@@ -100,11 +95,11 @@ in the selected region. Run the first line to view a table. Use the other lines
 when you want to save a private JSON copy.
 
 ```powershell
-uv run --no-sync bototoolkit @AwsArgs inventory
+bototoolkit @AwsArgs inventory
 
 New-Item -ItemType Directory -Force reports | Out-Null
 $ReportPath = 'reports/inventory-' + (Get-Date -Format yyyyMMdd-HHmmss) + '.json'
-uv run --no-sync bototoolkit @AwsArgs inventory --format json --output $ReportPath
+bototoolkit @AwsArgs inventory --format json --output $ReportPath
 ```
 
 An empty complete report means the scan returned zero matching resources.
@@ -113,14 +108,19 @@ reports and audit files in private local storage.
 
 ## 5. Try the terminal browser
 
-Install the optional terminal interface. The offline demo shows a single
-synthetic Amplify view. Quit with **Ctrl+Q** and open a live session to try the
-AWS view picker.
+To add the optional terminal browser, return to the folder containing the
+verified wheel and reinstall it with the `tui` extra.
 
 ```powershell
-uv sync --locked --no-dev --extra tui
-uv run --offline --no-sync bototoolkit tui --demo
-uv run --no-sync bototoolkit @AwsArgs tui --live
+uv tool install --force --python 3.15.0 './amplify_ops-0.2.0-py3-none-any.whl[tui]'
+bototoolkit tui --demo
+```
+
+The demo shows a single synthetic Amplify view. Quit with **Ctrl+Q**, then use
+your AWS settings from step 3 to open a live session.
+
+```powershell
+bototoolkit @AwsArgs tui --live
 ```
 
 The live session opens on Amplify. Click the highlighted **AWS view** selector
@@ -140,8 +140,8 @@ start with `investigate`. For differences between two branches, use
 ```powershell
 $AppId = Read-Host 'Amplify APP_ID'
 $Branch = Read-Host 'Amplify branch name'
-uv run --no-sync bototoolkit @AwsArgs investigate --app-id $AppId --branch $Branch
-uv run --no-sync bototoolkit @AwsArgs compare --app-id $AppId --source dev --target main
+bototoolkit @AwsArgs investigate --app-id $AppId --branch $Branch
+bototoolkit @AwsArgs compare --app-id $AppId --source dev --target main
 ```
 
 Investigation defaults to the latest failed job. Use `--job-id JOB_ID` to
@@ -155,11 +155,11 @@ Run the command that answers your question.
 
 | Question | PowerShell command |
 | --- | --- |
-| What state are my EC2 instances in, and how healthy are they? | `uv run --no-sync bototoolkit @AwsArgs ec2 inventory` |
-| Which unattached EBS volumes should owners review? | `uv run --no-sync bototoolkit @AwsArgs ebs candidates` |
-| Which CloudWatch alarms are in ALARM? | `uv run --no-sync bototoolkit @AwsArgs cloudwatch alarms --state ALARM` |
-| Which management changes were recorded in the past 24 hours? | `uv run --no-sync bototoolkit @AwsArgs cloudtrail changes --hours 24 --limit 100` |
-| Which AppSync API keys are expiring soon? | `uv run --no-sync bototoolkit @AwsArgs api-keys --warn-days 30` |
+| What state are my EC2 instances in, and how healthy are they? | `bototoolkit @AwsArgs ec2 inventory` |
+| Which unattached EBS volumes should owners review? | `bototoolkit @AwsArgs ebs candidates` |
+| Which CloudWatch alarms are in ALARM? | `bototoolkit @AwsArgs cloudwatch alarms --state ALARM` |
+| Which management changes were recorded in the past 24 hours? | `bototoolkit @AwsArgs cloudtrail changes --hours 24 --limit 100` |
+| Which AppSync API keys are expiring soon? | `bototoolkit @AwsArgs api-keys --warn-days 30` |
 
 For Resource Explorer, use an existing view in the verified account and
 selected region. The list shows indexed resources. The summary counts them by
@@ -167,8 +167,8 @@ service and region.
 
 ```powershell
 $ViewArn = Read-Host 'Existing Resource Explorer view ARN'
-uv run --no-sync bototoolkit @AwsArgs resources list --view-arn $ViewArn
-uv run --no-sync bototoolkit @AwsArgs resources summary --view-arn $ViewArn
+bototoolkit @AwsArgs resources list --view-arn $ViewArn
+bototoolkit @AwsArgs resources summary --view-arn $ViewArn
 ```
 
 See the [EC2, CloudWatch, and CloudTrail reference](../README.md#ec2-cloudwatch-and-cloudtrail)
@@ -187,7 +187,7 @@ $StartDate = Read-Host 'Start date (YYYY-MM-DD)'
 $EndDate = Read-Host 'Exclusive end date (YYYY-MM-DD)'
 $CostArgs = @('--profile', $AwsProfile,
   '--expected-account', $AccountId, '--region', 'us-east-1')
-uv run --no-sync bototoolkit @CostArgs costs --start $StartDate --end $EndDate
+bototoolkit @CostArgs costs --start $StartDate --end $EndDate
 ```
 
 Use `stale` to review older Amplify environments. Sign in to GitHub CLI with
@@ -196,7 +196,7 @@ Amplify step to set `$AppId`.
 
 ```powershell
 $AppRepo = Read-Host 'GitHub OWNER/REPOSITORY for the Amplify app'
-uv run --no-sync bototoolkit @AwsArgs stale --app-id $AppId --repository $AppRepo --older-than 90
+bototoolkit @AwsArgs stale --app-id $AppId --repository $AppRepo --older-than 90
 ```
 
 See the [cost reporting](remaining-commands.md#cost-reporting) and
@@ -213,7 +213,7 @@ before saving the plan.
 $JobId = Read-Host 'Completed numeric JOB_ID'
 New-Item -ItemType Directory -Force reports | Out-Null
 $PlanPath = 'reports/retry-' + (Get-Date -Format yyyyMMdd-HHmmss) + '.json'
-uv run --no-sync bototoolkit @AwsArgs deploy-plan --app-id $AppId --branch $Branch --job-id $JobId --output $PlanPath
+bototoolkit @AwsArgs deploy-plan --app-id $AppId --branch $Branch --job-id $JobId --output $PlanPath
 ```
 
 Review the target, source job, production flag, expiry, and plan ID.
@@ -229,9 +229,9 @@ for confirmations and handling uncertain submissions.
 | Missing or expired credentials | Renew the session for your selected profile using its approved sign-in method and rerun `identity`. |
 | Account mismatch | Confirm the intended account and check the local profile mapping. |
 | Access denied or partial results | Ask your administrator to review the read permissions for that command. Start with the [Amplify IAM reference](../README.md#required-iam-read-permissions) or the service reference above. |
-| Unknown option or missing argument | Run `uv run --no-sync bototoolkit COMMAND --help`, replacing `COMMAND` with the command you’re using. |
+| Unknown option or missing argument | Run `bototoolkit COMMAND --help`, replacing `COMMAND` with the command you’re using. |
 
-See the [release notes and limits](../README.md#020-unreleased) for supported
+See the [release notes and limits](../README.md#v020) for supported
 Python and platform validation, inventory coverage, and live scan limits.
 
 Exit code 0 means the operation completed. Codes 1 and 2 indicate a failure or
