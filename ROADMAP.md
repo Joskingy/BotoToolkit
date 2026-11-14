@@ -17,7 +17,7 @@ Local `doctor` diagnostics and optional STS-only verification are implemented.
 The optional TUI offers an offline demo and bounded, on-demand AWS reports. See [the TUI guide](docs/tui.md).
 The `dev.ps1` helper supports worktree setup, checks, feature PRs, and promotion.
 
-## Next release: 0.2.0 public onboarding
+## 0.2.0 public onboarding
 
 Goal: a new user can install BotoToolkit, select their own profile, verify the
 target account, and obtain a useful read-only CLI or TUI report without help
@@ -27,8 +27,7 @@ Scope: public setup/usage guidance, a working `bototoolkit` command with
 `amplify-ops` compatibility, first-use and clean-installation checks, and a
 versioned release with concise notes and known limits. No new AWS operations.
 
-Status: 0.2.0 is unreleased. Tagging and publication follow promotion to main.
-See the [release notes](README.md#020-unreleased).
+Status: published. See the [v0.2.0 release notes](https://github.com/Joskingy/BotoToolkit/releases/tag/v0.2.0).
 
 ## Operating limits
 

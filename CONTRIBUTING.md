@@ -150,9 +150,9 @@ use `uv tool install --force --python 3.15.0 '.[tui]'`.
 
 ### Versioned wheel installation
 
-Version 0.2.0 is being prepared and is not published yet. Once approved and
-published, download its wheel and SHA256SUMS from this repository's GitHub release.
-Compare `Get-FileHash -Algorithm SHA256` for the downloaded file with SHA256SUMS.
+Download the wheel and SHA256SUMS from the
+[v0.2.0 release](https://github.com/Joskingy/BotoToolkit/releases/tag/v0.2.0).
+Follow the [user guide](docs/quick-start.md#2-install-and-check-bototoolkit) to verify the checksum.
 From the download directory, install the wheel:
 
 ```powershell
