@@ -1,11 +1,12 @@
 from datetime import date, timedelta
+from time import monotonic
 
 import pytest
 from conftest import ACCOUNT, NOW, OTHER_REGION, REGION, identity_response
 from typer.testing import CliRunner
 
 from amplify_ops.appsync import key_expirations
-from amplify_ops.aws import AuthenticationFailure, AwsAccess
+from amplify_ops.aws import AuthenticationFailure, AwsAccess, InventoryBudget
 from amplify_ops.cli import app
 from amplify_ops.costs import cost_report
 from amplify_ops.models import ApiKeyExpiry, ApiSummary
@@ -217,6 +218,27 @@ def test_cost_partial_account_data_is_unknown_not_zero(services):
     assert not report.complete
     assert report.rows[0].account_cost is None and report.rows[0].outside_tag_scope is None
     assert report.rows[0].tag_attributed_estimate == "10"
+
+
+def test_cost_page_budget_withholds_partial_amounts(services):
+    _, _, stubs = services
+    identity_response(stubs)
+    stubs["ce", REGION].add_response(
+        "get_cost_and_usage", cost_page("10", NextPageToken="next"), PARAMS
+    )
+
+    report = cost_report(
+        connect(),
+        date(2026, 9, 1),
+        date(2026, 10, 1),
+        None,
+        None,
+        budget=InventoryBudget(1, monotonic() + 30, lambda: False),
+    )
+
+    assert not report.complete and report.errors[0].code == "PageLimit"
+    assert report.rows[0].service == "AWS Amplify"
+    assert report.rows[0].account_cost is None
 
 
 def test_cost_arithmetic_preserves_every_reported_decimal_place(services):

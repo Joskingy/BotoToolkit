@@ -3,7 +3,7 @@
 from datetime import UTC, date, datetime
 from decimal import Decimal, DecimalException, InvalidOperation, localcontext
 
-from amplify_ops.aws import AwsAccess, ResourceFailure
+from amplify_ops.aws import AwsAccess, InventoryBudget, InventoryLimitReached, ResourceFailure
 from amplify_ops.inventory import timestamp
 from amplify_ops.models import CostRow, Report, ScanError
 
@@ -24,6 +24,8 @@ def cost_report(
     end: date,
     tag_key: str | None,
     tag_value: str | None,
+    *,
+    budget: InventoryBudget | None = None,
 ) -> Report:
     # Read the clock before CE calls; dates are explicit, and end is exclusive.
     now = datetime.now(UTC)
@@ -63,7 +65,7 @@ def cost_report(
     baseline_complete = False
     tagged_complete = False
     try:
-        reader = access.service("ce", "us-east-1")
+        reader = access.service("ce", "us-east-1", budget=budget)
         for kind, filters, amounts in [
             ("account", base_filter, totals),
             *(
@@ -94,7 +96,7 @@ def cost_report(
                     baseline_complete = True
                 else:
                     tagged_complete = True
-            except ResourceFailure as error:
+            except (ResourceFailure, InventoryLimitReached) as error:
                 report.add_error(error.error)
             except DecimalException:
                 report.add_error(

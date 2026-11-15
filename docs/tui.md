@@ -38,13 +38,24 @@ close the menu. Search filters the collected rows and their details locally.
   by service and region. Enable both by appending `--view-arn VIEW_ARN` to the
   command. Use an existing view in the verified account and selected region.
   Coverage depends on the view and its index.
+- **Cost Explorer** (development checkout) shows unblended costs by service for
+  the last 30 completed UTC days across all billing regions of the verified
+  account. Dates, currency, and AWS estimate flags are shown. Credits and
+  refunds are excluded, and billing data can lag. Enable Cost Explorer and
+  grant `ce:GetCostAndUsage`. The query uses the `us-east-1` endpoint and loads
+  on first selection. Returning to the view shows the cached results and original
+  scan time. Press **F5** in the cost view for a fresh scan. The cache is kept
+  in memory until you quit. Initial scans and refreshes are billed per request.
+  [AWS API pricing](https://aws.amazon.com/aws-cost-management/aws-cost-explorer/pricing/)
 
-Each selection or alarm-history request verifies the account with STS, then
-starts at most 100 AWS calls. This includes paginator pages and follow-up reads.
+Each new scan or alarm-history request verifies the account with STS, then
+starts at most 100 AWS calls (10 for Cost Explorer). This includes paginator
+pages and follow-up reads.
 The scan stops starting new calls after 30 seconds. An in-flight call can finish
 later under the SDK timeout and retry settings. The banner shows the verified
-account, region, start time, and completion status. Partial results retain the
-rows collected so far. The view picker is available again after the scan ends.
+account, scope, start time, and completion status. Partial results retain the
+rows collected so far. Cost Explorer withholds amounts when pagination is
+incomplete. The view picker is available again after the scan ends.
 
 Use Up/Down to move through rows, `/` to search, and Esc to clear the filter.
 Tab and Shift+Tab move between controls. Ctrl+Q quits and cancels further

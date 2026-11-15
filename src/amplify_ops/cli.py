@@ -5,7 +5,7 @@ import re
 import sys
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from enum import StrEnum
 from pathlib import Path
 from time import monotonic
@@ -154,7 +154,8 @@ def tui(
             access = AwsAccess.connect(settings.profile, settings.expected_account, region)
         else:
             access.reverify(region)
-        budget = InventoryBudget(100, monotonic() + 30, cancelled)
+        # Cost Explorer charges per page, so give it a smaller request budget.
+        budget = InventoryBudget(10 if view is View.COSTS else 100, monotonic() + 30, cancelled)
         match view:
             case View.AMPLIFY:
                 return collect_inventory(access, settings.regions, budget=budget)
@@ -170,6 +171,9 @@ def tui(
                 return collect_cloudtrail_changes(
                     access, settings.regions, 24, 100, None, budget=budget
                 )
+            case View.COSTS:
+                end = datetime.now(UTC).date()
+                return cost_report(access, end - timedelta(days=30), end, None, None, budget=budget)
             case View.RESOURCES | View.RESOURCE_COUNTS:
                 assert view_arn is not None
                 return collect_resources(
