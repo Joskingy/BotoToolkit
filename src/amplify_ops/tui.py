@@ -50,6 +50,7 @@ class View(StrEnum):
     EC2 = "EC2 inventory"
     RESOURCES = "Resource Explorer"
     RESOURCE_COUNTS = "Resource Explorer counts"
+    COSTS = "Cost Explorer"
 
 
 REPORT_COLUMNS = {
@@ -59,6 +60,7 @@ REPORT_COLUMNS = {
     View.EC2: ("instance_id", "name", "state", "instance_status", "system_status"),
     View.RESOURCES: ("service", "resource_type", "region", "arn"),
     View.RESOURCE_COUNTS: ("service", "region", "count"),
+    View.COSTS: ("service", "account_cost", "currency", "estimated_by_aws"),
 }
 RESOURCE_VIEWS = (View.RESOURCES, View.RESOURCE_COUNTS)
 LIMIT_REASONS = {
@@ -76,6 +78,7 @@ def field_label(name: str) -> str:
     return {
         "size_gib": "Size (GiB)",
         "arn": "ARN",
+        "estimated_by_aws": "Estimated by AWS",
     }.get(name, name.replace("_", " ").capitalize())
 
 
@@ -124,6 +127,7 @@ class InventoryBrowser(App[None]):
         Binding("slash", "search", "Search"),
         Binding("escape", "reset_search", "Clear search", priority=True),
         Binding("ctrl+r", "reset_demo", "Reset demo", priority=True),
+        Binding("f5", "refresh_costs", "Refresh costs (API fee)", priority=True),
         Binding("ctrl+q", "quit", "Quit", priority=True),
     ]
 
@@ -137,6 +141,7 @@ class InventoryBrowser(App[None]):
         self.view = View.AMPLIFY
         self.apps = demo_apps() if load_view is None else []
         self.report: Report | None = None
+        self.cached_costs: Report | None = None
         self.history_alarm: str | None = None
         self.alarm_history: Report | None = None
         self.highlighted: str | None = None
@@ -159,7 +164,12 @@ class InventoryBrowser(App[None]):
                 yield Label("AWS view", id="view-label")
                 yield Select(
                     [
-                        (view.value, view)
+                        (
+                            "Cost Explorer (API charges apply)"
+                            if view is View.COSTS
+                            else view.value,
+                            view,
+                        )
                         for view in View
                         if self.resource_explorer or view not in RESOURCE_VIEWS
                     ],
@@ -205,11 +215,21 @@ class InventoryBrowser(App[None]):
         self.report = None
         self.set_columns()
         self.query_one(Input).value = ""
-        self.start_scan()
+        if self.view is View.COSTS and self.cached_costs is not None:
+            self.history_alarm = None
+            self.alarm_history = None
+            self.report = self.cached_costs
+            self.show_status(self.report, cached=True)
+            self.populate("")
+            self.refresh_bindings()
+        else:
+            self.start_scan()
 
     def start_scan(self, alarm_name: str | None = None) -> None:
         if self.load_view is None or self.scanning or self.identity_failed:
             return
+        if self.view is View.COSTS:
+            self.report = None
         self.scanning = True
         self.scan_exit_code = 3
         self.history_alarm = alarm_name
@@ -244,6 +264,8 @@ class InventoryBrowser(App[None]):
         result = event.worker.result
         self.scanning = False
         self.identity_failed = isinstance(result, AuthenticationFailure)
+        if self.identity_failed:
+            self.cached_costs = None
         self.query_one(Select).disabled = self.identity_failed
         self.refresh_bindings()
         if isinstance(result, (str, AuthenticationFailure)):
@@ -259,17 +281,23 @@ class InventoryBrowser(App[None]):
                 self.show_status(self.report or result, history=result)
             else:
                 self.report = result
+                if self.view is View.COSTS:
+                    self.cached_costs = result
                 self.show_status(result)
         if self.history_alarm is not None and self.highlighted is not None:
             self.show_details(self.highlighted)
         else:
             self.populate(self.query_one(Input).value)
 
-    def show_status(self, report: Inventory | Report, *, history: Report | None = None) -> None:
+    def show_status(
+        self, report: Inventory | Report, *, history: Report | None = None, cached: bool = False
+    ) -> None:
         complete = report.complete and (history is None or history.complete)
         status = "Complete"
         self.scan_exit_code = 0 if complete else 3
         self.empty_message = "No matching resources in this scan."
+        if self.view is View.COSTS:
+            self.empty_message = "No service costs were returned for this period."
         if not complete:
             errors = [*report.errors, *(history.errors if history is not None else [])]
             limit = next((error for error in errors if error.category == "limit"), None)
@@ -277,10 +305,12 @@ class InventoryBrowser(App[None]):
             status = f"PARTIAL ({reason or 'some AWS data could not be read'})"
             self.empty_message = "No rows collected. The scan is incomplete."
         label = f"{self.view.value} history" if history is not None else self.view.value
+        scope = "All billing regions" if self.view is View.COSTS else report.regions[0]
+        source = "Cached | " if cached else ""
         self.query_one("#banner", Static).update(
             plain(
                 f"LIVE | Read-only | {label} | Account {report.identity.account_id} | "
-                f"{report.regions[0]} | {status} | Started {(history or report).generated_at}"
+                f"{scope} | {status} | {source}Started {(history or report).generated_at}"
             )
         )
 
@@ -441,12 +471,19 @@ class InventoryBrowser(App[None]):
             if self.load_view is None:
                 return False
             return None if self.scanning or self.identity_failed else True
+        if action == "refresh_costs":
+            if self.load_view is None or self.view is not View.COSTS:
+                return False
+            return None if self.scanning or self.identity_failed else True
         if action == "reset_demo" and self.load_view is not None:
             return False
         return super().check_action(action, parameters)
 
     async def action_quit(self) -> None:
         self.exit(return_code=self.scan_exit_code)
+
+    def action_refresh_costs(self) -> None:
+        self.start_scan()
 
     def action_reset_demo(self) -> None:
         self.apps = demo_apps()
