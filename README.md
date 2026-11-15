@@ -87,6 +87,11 @@ security-hook setup, tests, and folder responsibilities.
 For a source checkout, install the optional terminal browser with
 `uv sync --locked --extra tui`, then run
 `uv run --offline --no-sync bototoolkit tui --demo` to explore synthetic data.
+In the development checkout, the live TUI also offers **Cost Explorer** in the
+**F2** view picker. It shows 30 completed UTC days of spending by AWS service
+across all billing regions for the verified account. Results are cached for the
+session. Press **F5** from the cost view to make a fresh, billable AWS request.
+See the [terminal browser guide](docs/tui.md#live-reports).
 
 ## Check your setup
 

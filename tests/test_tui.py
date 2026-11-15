@@ -207,7 +207,7 @@ def test_live_views_load_on_selection_and_reverify_before_each_scan(
 ):
     factory, session, stubs = harness
     stubs["amplify", REGION].add_response("list_apps", {"apps": []}, {})
-    for _ in range(7):
+    for _ in range(9):
         identity_response(stubs)
     identity_response(stubs, "000000000000")
 
@@ -281,6 +281,44 @@ def test_live_views_load_on_selection_and_reverify_before_each_scan(
             "MaxResults": 50,
         },
     )
+
+    monkeypatch.setattr("amplify_ops.cli.datetime", Mock(now=Mock(return_value=NOW)))
+    period = {"Start": "2026-09-16", "End": "2026-10-16"}
+    costs = service_stub("ce")
+    for amount in ("12.34", "15.67"):
+        costs.add_response(
+            "get_cost_and_usage",
+            {
+                "ResultsByTime": [
+                    {
+                        "TimePeriod": period,
+                        "Estimated": True,
+                        "Groups": [
+                            {
+                                "Keys": ["Amazon EC2"],
+                                "Metrics": {"UnblendedCost": {"Amount": amount, "Unit": "USD"}},
+                            }
+                        ],
+                    }
+                ]
+            },
+            {
+                "TimePeriod": period,
+                "Granularity": "MONTHLY",
+                "Metrics": ["UnblendedCost"],
+                "GroupBy": [{"Type": "DIMENSION", "Key": "SERVICE"}],
+                "Filter": {
+                    "And": [
+                        {"Dimensions": {"Key": "LINKED_ACCOUNT", "Values": [ACCOUNT]}},
+                        {
+                            "Not": {
+                                "Dimensions": {"Key": "RECORD_TYPE", "Values": ["Credit", "Refund"]}
+                            }
+                        },
+                    ]
+                },
+            },
+        )
 
     view_arn = f"arn:aws:resource-explorer-2:{REGION}:{ACCOUNT}:view/ops/example"
     resources = service_stub("resource-explorer-2")
@@ -356,13 +394,43 @@ def test_live_views_load_on_selection_and_reverify_before_each_scan(
             browser.query_one(Input).value = instance
             await pilot.pause()
             assert table.row_count == 1 and "operator" in details(browser)
+            assert "ce" not in called_services()
+            await select(View.COSTS)
+            assert table.row_count == 1
+            assert [cell.plain for cell in table.get_row_at(0)] == [
+                "Amazon EC2",
+                "12.34",
+                "USD",
+                "True",
+            ]
+            banner = str(browser.query_one("#banner", Static).content)
+            assert "All billing regions" in banner and "Complete" in banner
+            assert "2026-09-16 to 2026-10-16 (exclusive)" in details(browser)
+            assert "Credits and refunds are excluded" in details(browser)
             await select(View.RESOURCES)
             assert resource_arn in details(browser)
             await select(View.RESOURCE_COUNTS)
             assert "Count: 1" in details(browser)
 
-            await select(View.EBS)
+            calls_before_cache = called_services()
+            await pilot.press("f5")
+            await finish_scan()
+            assert called_services() == calls_before_cache
+            await select(View.COSTS)
+            assert called_services() == calls_before_cache
+            assert table.get_cell_at((0, 1)).plain == "12.34"
+            assert "Cached" in str(browser.query_one("#banner", Static).content)
+
+            await pilot.press("f5")
+            await finish_scan()
+            assert called_services() == [*calls_before_cache, "sts", "ce"]
+            assert table.get_cell_at((0, 1)).plain == "15.67"
+            assert "Cached" not in str(browser.query_one("#banner", Static).content)
+
+            await pilot.press("f5")
+            await finish_scan()
             assert "Account mismatch" in details(browser)
+            assert table.row_count == 0
             assert picker.disabled
             await pilot.press("f2")
             assert not picker.expanded
@@ -380,9 +448,13 @@ def test_live_views_load_on_selection_and_reverify_before_each_scan(
                 "sts",
                 "cloudtrail",
                 "sts",
+                "ce",
+                "sts",
                 "resource-explorer-2",
                 "sts",
                 "resource-explorer-2",
+                "sts",
+                "ce",
                 "sts",
             ]
             await pilot.press("ctrl+q")
