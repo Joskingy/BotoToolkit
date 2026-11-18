@@ -38,7 +38,7 @@ close the menu. Search filters the collected rows and their details locally.
   by service and region. Enable both by appending `--view-arn VIEW_ARN` to the
   command. Use an existing view in the verified account and selected region.
   Coverage depends on the view and its index.
-- **Cost Explorer** (development checkout) shows unblended costs by service for
+- **Cost Explorer** (v0.3.0 preview) shows unblended costs by service for
   the last 30 completed UTC days across all billing regions of the verified
   account. Dates, currency, and AWS estimate flags are shown. Credits and
   refunds are excluded, and billing data can lag. Enable Cost Explorer and

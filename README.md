@@ -17,6 +17,19 @@ installation, AWS setup, and CLI and terminal browser examples.
 See the [CLI workflow diagrams](docs/cli-workflow.md) for the identity gate,
 read-only commands, and controlled retry path.
 
+## v0.3.0 preview
+
+The live TUI adds **Cost Explorer** to the **F2** view picker. See service
+spending for the last 30 completed UTC days across all billing regions of the
+verified account. Switching back shows the session's cached results. Press
+**F5** in the cost view to verify the account and run a fresh scan.
+
+Initial scans and refreshes can incur AWS API charges. Each scan is capped at
+10 pages. The [terminal browser guide](docs/tui.md#live-reports) covers access,
+cost scope, and partial results. Try the preview from a
+[source checkout](#work-from-a-source-checkout). The published wheel below is
+still v0.2.0.
+
 ## v0.2.0
 
 This release focuses on a first-time user's path from installation to a verified
@@ -87,11 +100,6 @@ security-hook setup, tests, and folder responsibilities.
 For a source checkout, install the optional terminal browser with
 `uv sync --locked --extra tui`, then run
 `uv run --offline --no-sync bototoolkit tui --demo` to explore synthetic data.
-In the development checkout, the live TUI also offers **Cost Explorer** in the
-**F2** view picker. It shows 30 completed UTC days of spending by AWS service
-across all billing regions for the verified account. Results are cached for the
-session. Press **F5** from the cost view to make a fresh, billable AWS request.
-See the [terminal browser guide](docs/tui.md#live-reports).
 
 ## Check your setup
 

@@ -29,6 +29,14 @@ versioned release with concise notes and known limits. No new AWS operations.
 
 Status: published. See the [v0.2.0 release notes](https://github.com/Joskingy/BotoToolkit/releases/tag/v0.2.0).
 
+## 0.3.0 Cost Explorer in the terminal browser
+
+The live TUI shows service spending for the verified account using the
+existing read-only collector. It keeps results for the session and lets the
+operator refresh on demand.
+
+Status: implemented and tested. Release preparation is in progress.
+
 ## Operating limits
 
 - All AWS commands require an explicit local profile, independently expected

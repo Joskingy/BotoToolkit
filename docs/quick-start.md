@@ -127,11 +127,21 @@ The live session opens on Amplify. Click the highlighted **AWS view** selector
 or press **F2** to switch reports. Use **/** to search and **Up/Down** to see row
 details. The live browser uses one selected region. See the
 [terminal browser guide](tui.md) for alarm history, Resource Explorer setup, and
-scan limits. When running from a development checkout, choose **Cost Explorer**
-in the live picker to see service costs for the last 30 completed UTC days.
-The view covers the verified account across all billing regions. Cost Explorer
-must be enabled, and AWS charges for API requests. Switching back reuses the
-session's results. Press **F5** in the cost view to run a new scan.
+scan limits.
+
+The **v0.3.0 preview** adds Cost Explorer. To try it from a
+[source checkout](../README.md#work-from-a-source-checkout) with the same AWS
+settings, run:
+
+```powershell
+uv sync --locked --extra tui
+uv run --locked bototoolkit @AwsArgs tui --live
+```
+
+Press **F2** and choose **Cost Explorer** to see the last 30 completed UTC days
+of service costs across all billing regions for the verified account. Cost
+Explorer must be enabled and AWS charges for API requests. Returning to the
+view reuses the session's results. Press **F5** in the cost view for a new scan.
 
 ## 6. Choose a report for your task
 
