@@ -138,10 +138,11 @@ uv sync --locked --extra tui
 uv run --locked bototoolkit @AwsArgs tui --live
 ```
 
-Press **F2** and choose **Cost Explorer** to see the last 30 completed UTC days
-of service costs across all billing regions for the verified account. Cost
-Explorer must be enabled and AWS charges for API requests. Returning to the
-view reuses the session's results. Press **F5** in the cost view for a new scan.
+Press **F2** and choose **Cost Explorer**. The console link opens the free web
+view using your browser’s AWS sign-in. Check the account shown there. To see
+service costs inside the TUI, press **F5**. This starts a billable query for the
+last 30 completed UTC days across all billing regions of the verified account.
+Switching back to this view reuses the results until you quit.
 
 ## 6. Choose a report for your task
 
