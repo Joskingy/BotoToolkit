@@ -42,10 +42,11 @@ close the menu. Search filters the collected rows and their details locally.
   the last 30 completed UTC days across all billing regions of the verified
   account. Dates, currency, and AWS estimate flags are shown. Credits and
   refunds are excluded, and billing data can lag. Enable Cost Explorer and
-  grant `ce:GetCostAndUsage`. The query uses the `us-east-1` endpoint and loads
-  on first selection. Returning to the view shows the cached results and original
-  scan time. Press **F5** in the cost view for a fresh scan. The cache is kept
-  in memory until you quit. Initial scans and refreshes are billed per request.
+  grant `ce:GetCostAndUsage` for live queries. Selecting the view shows a link
+  to the free AWS console. Check the account in the browser, which uses its own
+  AWS sign-in. Only **F5** queries the `us-east-1` endpoint and incurs API
+  charges. Returning to the view shows the cached results and original scan
+  time. The cache is kept in memory until you quit.
   [AWS API pricing](https://aws.amazon.com/aws-cost-management/aws-cost-explorer/pricing/)
 
 Each new scan or alarm-history request verifies the account with STS, then

@@ -10,7 +10,7 @@ from textual import on, work
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, VerticalScroll
-from textual.widgets import DataTable, Footer, Header, Input, Label, Select, Static
+from textual.widgets import DataTable, Footer, Header, Input, Label, Link, Select, Static
 from textual.worker import Worker, WorkerState, get_current_worker
 
 from amplify_ops.aws import AuthenticationFailure
@@ -115,6 +115,7 @@ class InventoryBrowser(App[None]):
         text-style: bold underline;
     }
     #view:disabled > SelectCurrent { background: $surface-lighten-1; }
+    #cost-console { display: none; margin: 0 1; }
     #search { margin: 0 1; }
     #summary { height: 1; margin: 0 1; }
     #resources { height: 1fr; min-height: 5; margin: 0 1; border: round $primary; }
@@ -127,7 +128,7 @@ class InventoryBrowser(App[None]):
         Binding("slash", "search", "Search"),
         Binding("escape", "reset_search", "Clear search", priority=True),
         Binding("ctrl+r", "reset_demo", "Reset demo", priority=True),
-        Binding("f5", "refresh_costs", "Refresh costs (API fee)", priority=True),
+        Binding("f5", "refresh_costs", "Fetch costs (API fee)", priority=True),
         Binding("ctrl+q", "quit", "Quit", priority=True),
     ]
 
@@ -164,12 +165,7 @@ class InventoryBrowser(App[None]):
                 yield Label("AWS view", id="view-label")
                 yield Select(
                     [
-                        (
-                            "Cost Explorer (API charges apply)"
-                            if view is View.COSTS
-                            else view.value,
-                            view,
-                        )
+                        (view.value, view)
                         for view in View
                         if self.resource_explorer or view not in RESOURCE_VIEWS
                     ],
@@ -178,6 +174,12 @@ class InventoryBrowser(App[None]):
                     id="view",
                     compact=True,
                 )
+            yield Link(
+                "Open Cost Explorer in the AWS console (free)",
+                url="https://console.aws.amazon.com/costmanagement/home#/cost-explorer",
+                tooltip="Uses your browser’s AWS sign-in. Check the account in the console.",
+                id="cost-console",
+            )
         yield Input(placeholder="Search displayed inventory…", id="search")
         yield Static(id="summary")
         yield DataTable(id="resources", cursor_type="row", zebra_stripes=True)
@@ -215,11 +217,18 @@ class InventoryBrowser(App[None]):
         self.report = None
         self.set_columns()
         self.query_one(Input).value = ""
-        if self.view is View.COSTS and self.cached_costs is not None:
+        self.query_one("#cost-console", Link).display = self.view is View.COSTS
+        if self.view is View.COSTS:
             self.history_alarm = None
             self.alarm_history = None
             self.report = self.cached_costs
-            self.show_status(self.report, cached=True)
+            if self.report is None:
+                self.query_one("#banner", Static).update("LIVE | Read-only | Cost Explorer")
+                self.empty_message = (
+                    "No cost data loaded. Press F5 to fetch from AWS ($0.01 per page)."
+                )
+            else:
+                self.show_status(self.report, cached=True)
             self.populate("")
             self.refresh_bindings()
         else:

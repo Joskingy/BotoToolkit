@@ -21,10 +21,11 @@ read-only commands, and controlled retry path.
 
 The live TUI adds **Cost Explorer** to the **F2** view picker. See service
 spending for the last 30 completed UTC days across all billing regions of the
-verified account. Switching back shows the session's cached results. Press
-**F5** in the cost view to verify the account and run a fresh scan.
+verified account. Open the free AWS console view using your browser’s sign-in,
+or press **F5** to verify the account and load costs into the TUI. Switching
+back shows the session's cached results.
 
-Initial scans and refreshes can incur AWS API charges. Each scan is capped at
+Only **F5** starts a billable Cost Explorer scan in the TUI. Each scan is capped at
 10 pages. The [terminal browser guide](docs/tui.md#live-reports) covers access,
 cost scope, and partial results. Try the preview from a
 [source checkout](#work-from-a-source-checkout). The published wheel below is
