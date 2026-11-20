@@ -394,8 +394,23 @@ def test_live_views_load_on_selection_and_reverify_before_each_scan(
             browser.query_one(Input).value = instance
             await pilot.pause()
             assert table.row_count == 1 and "operator" in details(browser)
-            assert "ce" not in called_services()
+            calls_before_costs = called_services()
+            assert "ce" not in calls_before_costs
+            open_url = Mock()
+            monkeypatch.setattr(browser, "open_url", open_url)
             await select(View.COSTS)
+            assert table.row_count == 0 and "F5" in details(browser)
+            assert "$0.01 per page" in details(browser)
+            open_url.assert_not_called()
+            await pilot.click("#cost-console")
+            open_url.assert_called_once_with(
+                "https://console.aws.amazon.com/costmanagement/home#/cost-explorer"
+            )
+            assert called_services() == calls_before_costs
+
+            await pilot.press("f5")
+            await finish_scan()
+            assert called_services() == [*calls_before_costs, "sts", "ce"]
             assert table.row_count == 1
             assert [cell.plain for cell in table.get_row_at(0)] == [
                 "Amazon EC2",
