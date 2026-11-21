@@ -1,5 +1,5 @@
 [project]
-name = "amplify-ops"
+name = "bototoolkit"
 version = "0.3.0"
 description = "Read-only AWS inventory, investigation, and costs with controlled Amplify retries"
 readme = "README.md"
@@ -15,10 +15,9 @@ dependencies = [
 
 [project.scripts]
 bototoolkit = "amplify_ops.cli:app"
-amplify-ops = "amplify_ops.cli:app"
 
 [project.optional-dependencies]
-tui = [
+browse = [
     "textual>=8,<9",
 ]
 

@@ -51,12 +51,9 @@ uv run --locked python scripts/security_check.py --history
 git config --local core.hooksPath .githooks
 ```
 
-On Linux, also run `chmod +x .githooks/pre-commit .githooks/pre-push`. When
-staging the first commit, preserve the executable bits for other clones with
-`git add --chmod=+x .githooks/pre-commit .githooks/pre-push`. New clones must
-install the scanner and configure the hook path locally; Git does not copy
-repository-local configuration when cloning. Review any existing hook path
-before replacing it.
+Both hooks are tracked as executable. Each clone needs its own scanner
+installation and hook path setting. Review existing hooks before changing
+`core.hooksPath`.
 
 The installer downloads Gitleaks 8.24.3 into ignored `.uv/security-tools`, verifies
 the archive against a pinned SHA-256 digest, and extracts only the executable.
@@ -158,7 +155,7 @@ A push workflow runs **after GitHub receives the push**. It cannot undo that
 upload or prevent PR creation. Required checks block merging; local pre-push
 hooks and GitHub push protection provide earlier rejection. Feature availability
 depends on repository visibility and GitHub plan. Remote runs and settings must
-be verified separately. See [CI and GitHub setup](ci.md) for all five required
+be verified separately. See [CI and GitHub setup](ci.md) for the required
 check names, toolchain details, owner-review setup, and verification steps.
 
 If a real credential ever reaches Git history, revoke/rotate it and remove it

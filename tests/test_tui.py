@@ -12,7 +12,7 @@ from rich.text import Text
 from textual.widgets import DataTable, Footer, Input, Select, Static
 from typer.testing import CliRunner
 
-from amplify_ops.cli import Settings, app, tui
+from amplify_ops.cli import Settings, app, browse
 from amplify_ops.tui import InventoryBrowser, View
 
 
@@ -112,32 +112,32 @@ def test_resource_names_are_literal_and_control_characters_removed(tui_runner):
 @pytest.mark.usefixtures("forbid_aws_session")
 def test_cli_requires_one_mode_and_real_terminal():
     runner = CliRunner()
-    assert runner.invoke(app, ["tui"]).exit_code == 2
-    assert runner.invoke(app, ["tui", "--demo", "--live"]).exit_code == 2
-    assert runner.invoke(app, ["tui", "--live"]).exit_code == 2
+    assert runner.invoke(app, ["browse"]).exit_code == 2
+    assert runner.invoke(app, ["browse", "--demo", "--live"]).exit_code == 2
+    assert runner.invoke(app, ["browse", "--live"]).exit_code == 2
     options = ["--profile", "test-operator", "--expected-account", ACCOUNT, "--region", REGION]
-    result = runner.invoke(app, [*options, "--region", "us-west-2", "tui", "--live"])
+    result = runner.invoke(app, [*options, "--region", "us-west-2", "browse", "--live"])
     assert result.exit_code == 2
     assert "exactly one region" in result.stderr
     wrong_view = f"arn:aws:resource-explorer-2:us-west-2:{ACCOUNT}:view/ops/example"
-    result = runner.invoke(app, [*options, "tui", "--live", "--view-arn", wrong_view])
+    result = runner.invoke(app, [*options, "browse", "--live", "--view-arn", wrong_view])
     assert result.exit_code == 2
     error = Text.from_ansi(result.stderr).plain
     assert "Invalid value for --view-arn" in error
     assert "selected region and account" in error
-    result = runner.invoke(app, ["--profile", "test-operator", "tui", "--demo"])
+    result = runner.invoke(app, ["--profile", "test-operator", "browse", "--demo"])
     assert result.exit_code == 2
     assert "interactive terminal" in result.stderr
     assert result.stdout == ""
-    assert runner.invoke(app, ["tui", "--help"]).exit_code == 0
+    assert runner.invoke(app, ["browse", "--help"]).exit_code == 0
 
 
 @pytest.mark.usefixtures("forbid_aws_session")
 def test_cli_explains_missing_optional_extra(monkeypatch):
     monkeypatch.setattr("amplify_ops.cli.importlib.util.find_spec", lambda name: None)
-    result = CliRunner().invoke(app, ["tui", "--demo"])
+    result = CliRunner().invoke(app, ["browse", "--demo"])
     assert result.exit_code == 1
-    assert "uv sync --locked --extra tui" in result.stderr
+    assert "uv sync --locked --extra browse" in result.stderr
     assert result.stdout == ""
 
 
@@ -148,7 +148,7 @@ def test_cli_launches_demo_without_identity_options(monkeypatch):
     monkeypatch.setattr("amplify_ops.cli.sys.stdout.isatty", lambda: True)
     monkeypatch.setattr(InventoryBrowser, "run", run)
     ctx = typer.Context(typer.main.get_command(app), obj=Settings("", "", []))
-    tui(ctx, demo=True)
+    browse(ctx, demo=True)
     run.assert_called_once_with()
 
 
@@ -194,7 +194,7 @@ def test_live_startup_verifies_identity_and_only_scans_once(
         typer.main.get_command(app), obj=Settings("test-operator", ACCOUNT, [REGION])
     )
     with pytest.raises(typer.Exit) as error:
-        tui(ctx, live=True)
+        browse(ctx, live=True)
     assert error.value.exit_code == (3 if matches else 1)
     factory.assert_called_once_with(profile_name="test-operator", region_name=REGION)
     assert [call.args[0] for call in session.client.call_args_list] == (
@@ -481,6 +481,6 @@ def test_live_views_load_on_selection_and_reverify_before_each_scan(
         typer.main.get_command(app), obj=Settings("test-operator", ACCOUNT, [REGION])
     )
     with pytest.raises(typer.Exit) as error:
-        tui(ctx, live=True, view_arn=view_arn)
+        browse(ctx, live=True, view_arn=view_arn)
     assert error.value.exit_code == 1
     factory.assert_called_once_with(profile_name="test-operator", region_name=REGION)

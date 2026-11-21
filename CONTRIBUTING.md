@@ -8,14 +8,14 @@ your normal credential setup is needed for live AWS use, not for offline tests.
 
 ## First clone
 
-Replace OWNER/REPOSITORY with the intended repository location. The local destination name below is just a folder name.
+Clone BotoToolkit, then run the remaining commands from the repository root.
 
 ```powershell
-git clone https://github.com/OWNER/REPOSITORY.git amplify-ops
-cd amplify-ops
+git clone https://github.com/Joskingy/BotoToolkit.git
+cd BotoToolkit
 uv sync --locked
-uv run --locked amplify-ops --help
-uv run --offline --no-sync amplify-ops doctor --project .
+uv run --locked bototoolkit --help
+uv run --offline --no-sync bototoolkit doctor --project .
 uv run --locked python scripts/install_security_tools.py
 git config --local core.hooksPath .githooks
 uv run --locked python scripts/security_check.py --history
@@ -30,12 +30,10 @@ The [doctor command](docs/doctor.md) diagnoses the installed environment and
 optional repository checks without resolving AWS credentials. It is useful
 before your first live read, but does not replace tests or security scans.
 
-The scanner installer currently supports Windows x64 and Linux x64. On Linux,
-run `chmod +x .githooks/pre-commit .githooks/pre-push` before using the hooks.
-Check for existing custom hooks before replacing core.hooksPath. Hook setup is
-local to each clone; it is not inherited automatically from the remote.
-See [the security guide](docs/security.md) for supported platforms, first-commit
-executable bits, remote enforcement, and the limits of pattern scanning.
+The scanner installer supports Windows x64 and Linux x64. Git tracks both
+hooks as executable. The hook path is local to each clone. Check for custom
+hooks before setting it. See [the security guide](docs/security.md) for
+scanner coverage and remote enforcement.
 
 Tests use synthetic credentials and mocked AWS/GitHub responses. Scanner tests
 exercise a real local Gitleaks binary and disposable repositories; install that
@@ -59,8 +57,8 @@ operator settings; do not copy an STS response just to satisfy the assertion.
 Replace the example region with the region you intend to inspect.
 
 ```powershell
-uv run --locked amplify-ops --profile PROFILE_NAME --expected-account ACCOUNT_ID --region us-east-1 identity
-uv run --locked amplify-ops --profile PROFILE_NAME --expected-account ACCOUNT_ID --region us-east-1 inventory
+uv run --locked bototoolkit --profile PROFILE_NAME --expected-account ACCOUNT_ID --region us-east-1 identity
+uv run --locked bototoolkit --profile PROFILE_NAME --expected-account ACCOUNT_ID --region us-east-1 inventory
 ```
 
 For GitHub evidence, sign in with `gh auth login --hostname github.com` and
@@ -104,7 +102,7 @@ Retain them until module size or dependency boundaries justify a split.
 | Location | Responsibility |
 | --- | --- |
 | src/amplify_ops/ | Application code: CLI, AWS/GitHub adapters, reports, domain operations |
-| src/bototoolkit/ | Preserved original Python package; both CLI entry points use amplify_ops |
+| src/bototoolkit/ | Original Python package shipped alongside the CLI implementation in src/amplify_ops/ |
 | tests/ | Offline regression tests and scanner integration tests |
 | scripts/ | Contributor/security tooling, separate from installed application code |
 | docs/ | Detailed command usage, security, and operational guidance |
@@ -144,9 +142,8 @@ does not follow live source edits or consume the project's development lockfile.
 After an intentional update, reinstall from the reviewed checkout with
 `uv tool install --force --python 3.15.0 .`.
 
-The package remains named `amplify-ops`; both `bototoolkit` and `amplify-ops`
-commands are installed. To include the terminal browser from a trusted checkout,
-use `uv tool install --force --python 3.15.0 '.[tui]'`.
+The source checkout installs the `bototoolkit` package and command. To include
+Browse, use `uv tool install --force --python 3.15.0 '.[browse]'`.
 
 ### Versioned wheel installation
 
@@ -165,12 +162,12 @@ For the terminal browser, use
 `uv tool install --force --python 3.15.0 './amplify_ops-0.2.0-py3-none-any.whl[tui]'`.
 Then run `bototoolkit tui --demo`. Tool installation resolves dependencies from
 package metadata; use the locked checkout workflow when exact dependency
-versions are required. Keep using `amplify-ops` if existing scripts depend on it.
+versions are required.
 
 Release preparation uses `uv run --locked python scripts/check_distribution.py`
 to validate wheel/source installations. Build the final artifacts from the
-reviewed main commit using `uv build --no-sources`; publish only after approval
-and successful CI. Follow the [release tag rules](docs/branching-and-worktrees.md)
+reviewed main commit using `uv build --force-pep517 --no-sources` to use
+the same backend selection as CI. Publish after approval and successful CI. Follow the [release tag rules](docs/branching-and-worktrees.md)
 before creating a tag. Do not publish local working-tree builds as final releases.
 
 References: [uv project synchronization](https://docs.astral.sh/uv/concepts/projects/sync/),
