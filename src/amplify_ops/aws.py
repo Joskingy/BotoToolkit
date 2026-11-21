@@ -20,7 +20,7 @@ SDK_CONFIG = Config(
     connect_timeout=5,
     read_timeout=20,
     ignore_configured_endpoint_urls=True,
-    user_agent_extra="amplify-ops/0.1.0",
+    user_agent_extra="bototoolkit",
 )
 
 AUTH_CODES = {

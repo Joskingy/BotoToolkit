@@ -15,8 +15,8 @@ wrapper can map a child command's nonzero status to its own nonzero exit status.
 ## AppSync key expiration
 
 ```powershell
-uv run amplify-ops --profile PROFILE_NAME --expected-account ACCOUNT_ID --region us-east-1 api-keys --warn-days 30 --format json --output api-keys.json
-uv run amplify-ops --profile PROFILE_NAME --expected-account ACCOUNT_ID --region us-east-1 api-keys --api-id API_ID --app-id APP_ID
+uv run bototoolkit --profile PROFILE_NAME --expected-account ACCOUNT_ID --region us-east-1 api-keys --warn-days 30 --format json --output api-keys.json
+uv run bototoolkit --profile PROFILE_NAME --expected-account ACCOUNT_ID --region us-east-1 api-keys --api-id API_ID --app-id APP_ID
 ```
 
 Without API IDs, discover all GraphQL APIs in explicitly selected regions.
@@ -39,8 +39,8 @@ summaries. No key creation, extension, rotation, or deletion is implemented.
 ## Cost reporting
 
 ```powershell
-uv run amplify-ops --profile PROFILE_NAME --expected-account ACCOUNT_ID --region us-east-1 costs --start 2026-09-01 --end 2026-10-01 --format json --output costs.json
-uv run amplify-ops --profile PROFILE_NAME --expected-account ACCOUNT_ID --region us-east-1 costs --start 2026-09-01 --end 2026-10-01 --tag-key App --tag-value APP_ID
+uv run bototoolkit --profile PROFILE_NAME --expected-account ACCOUNT_ID --region us-east-1 costs --start 2026-09-01 --end 2026-10-01 --format json --output costs.json
+uv run bototoolkit --profile PROFILE_NAME --expected-account ACCOUNT_ID --region us-east-1 costs --start 2026-09-01 --end 2026-10-01 --tag-key App --tag-value APP_ID
 ```
 
 The command checks the clock before querying. Start is inclusive; end is
@@ -76,7 +76,7 @@ commands or requests access keys/tokens. See [GitHub troubleshooting](security.m
 for fixed diagnostic codes and credential-provider behavior.
 
 ```powershell
-uv run amplify-ops --profile PROFILE_NAME --expected-account ACCOUNT_ID --region us-east-1 stale --app-id APP_ID --repository OWNER/REPOSITORY --older-than 90 --format json --output stale.json
+uv run bototoolkit --profile PROFILE_NAME --expected-account ACCOUNT_ID --region us-east-1 stale --app-id APP_ID --repository OWNER/REPOSITORY --older-than 90 --format json --output stale.json
 ```
 
 The supplied repository must match the app's GitHub URL (case-insensitive,
@@ -110,7 +110,7 @@ deletion, config updates, and key rotation are not implemented.
 First produce a **read-only** plan:
 
 ```powershell
-uv run amplify-ops --profile PROFILE_NAME --expected-account ACCOUNT_ID --region us-east-1 deploy-plan --app-id APP_ID --branch dev --job-id 2 --format json --output retry-plan.json
+uv run bototoolkit --profile PROFILE_NAME --expected-account ACCOUNT_ID --region us-east-1 deploy-plan --app-id APP_ID --branch dev --job-id 2 --format json --output retry-plan.json
 ```
 
 Review the plan file's account, region, app, branch, source job/commit, stage,
@@ -124,7 +124,7 @@ Only when you deliberately authorize a real retry and have the separate write
 permission, use the exact reviewed plan ID (the example contains a placeholder):
 
 ```powershell
-uv run amplify-ops --profile PROFILE_NAME --expected-account ACCOUNT_ID --region us-east-1 deploy --plan retry-plan.json --confirm-plan REVIEWED_PLAN_ID
+uv run bototoolkit --profile PROFILE_NAME --expected-account ACCOUNT_ID --region us-east-1 deploy --plan retry-plan.json --confirm-plan REVIEWED_PLAN_ID
 ```
 
 For a production plan, also supply `--confirm-production BRANCH_NAME`. Missing

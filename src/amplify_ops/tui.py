@@ -138,7 +138,7 @@ class InventoryBrowser(App[None]):
         super().__init__()
         self.load_view = load_view
         self.resource_explorer = resource_explorer
-        self.sub_title = "Offline demo" if load_view is None else "AWS inventory"
+        self.sub_title = "Browse | Offline demo" if load_view is None else "Browse | AWS inventory"
         self.view = View.AMPLIFY
         self.apps = demo_apps() if load_view is None else []
         self.report: Report | None = None

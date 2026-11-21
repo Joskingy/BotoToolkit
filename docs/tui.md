@@ -1,11 +1,12 @@
-# Terminal browser
+# Browse
 
-Install the optional TUI extra and open an interactive terminal. A terminal at
-least 60 columns wide and 20 rows high works best.
+From a source checkout, install the browse extra and launch the demo in an
+interactive terminal. Allow at least 60 columns by 20 rows. For the published
+wheel, follow [the user guide](quick-start.md#5-try-the-terminal-browser).
 
 ```powershell
-uv sync --locked --extra tui
-uv run --offline --no-sync amplify-ops tui --demo
+uv sync --locked --extra browse
+uv run --offline --no-sync bototoolkit browse --demo
 ```
 
 The demo uses built-in synthetic apps, branches, and deployment statuses
@@ -18,12 +19,13 @@ with the AWS region to scan. Replace `PROFILE_NAME` with your profile and grant 
 read permissions for the reports you use.
 
 ```powershell
-uv run --no-sync amplify-ops --profile PROFILE_NAME --expected-account ACCOUNT_ID --region REGION tui --live
+uv run --no-sync bototoolkit --profile PROFILE_NAME --expected-account ACCOUNT_ID --region REGION browse --live
 ```
 
 The browser starts with Amplify. Press F2 or click the highlighted selector
-beside **AWS view** above the search box. Use Up/Down and Enter to load a report, or Esc to
-close the menu. Search filters the collected rows and their details locally.
+beside **AWS view** above the search box. Use Up/Down and Enter to select a
+view, or Esc to close the menu. Inventory views start a scan when selected.
+Cost Explorer waits for F5. Search filters the displayed rows locally.
 
 - **Unattached EBS volumes** are ordered by size. Details show the owner,
   creation time, and latest completed snapshot found by the check. An
@@ -49,11 +51,11 @@ close the menu. Search filters the collected rows and their details locally.
   time. The cache is kept in memory until you quit.
   [AWS API pricing](https://aws.amazon.com/aws-cost-management/aws-cost-explorer/pricing/)
 
-Each new scan or alarm-history request verifies the account with STS, then
-starts at most 100 AWS calls (10 for Cost Explorer). This includes paginator
-pages and follow-up reads.
-The scan stops starting new calls after 30 seconds. An in-flight call can finish
-later under the SDK timeout and retry settings. The banner shows the verified
+Each new scan or alarm-history request verifies the account with STS. After
+verification, the collector can start up to 100 service calls, or 10 for Cost
+Explorer. Each page and follow-up read uses one call. SDK retries for a call
+already in progress can make additional network attempts. The collector stops
+starting new calls after 30 seconds. An in-flight call can finish later. The banner shows the verified
 account, scope, start time, and completion status. Partial results retain the
 rows collected so far. Cost Explorer withholds amounts when pagination is
 incomplete. The view picker is available again after the scan ends.

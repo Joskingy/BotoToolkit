@@ -40,8 +40,8 @@ Use GitHub notification settings to receive failed scheduled-run alerts.
 
 ## GitHub configuration after review
 
-1. Require the exact `python-vulnerabilities` check for main and dev alongside the
-   existing five checks, once its successful PR run is visible.
+1. Verify that the branch rules for main and dev require `python-vulnerabilities`.
+   The full list of required checks is in [CI and GitHub setup](ci.md).
 2. Dependabot alerts and automatic security updates remain disabled by the current
    repository policy. OSV monitoring is independent of those settings.
 3. Confirm the default branch contains the weekly OSV workflow and no Dependabot

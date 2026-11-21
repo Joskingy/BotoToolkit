@@ -85,6 +85,11 @@ def smoke_install(wheel: Path, requirements: Path, target: Path, env: dict[str, 
         "-I",
         "-c",
         "import pathlib, sys, amplify_ops, bototoolkit; "
+        "from importlib.metadata import distribution; "
+        "dist = distribution('bototoolkit'); "
+        "assert {e.name for e in dist.entry_points if e.group == 'console_scripts'} "
+        "== {'bototoolkit'}; "
+        "assert 'browse' in dist.metadata.get_all('Provides-Extra', []); "
         "root = pathlib.Path(sys.prefix).resolve(); "
         "assert all(pathlib.Path(m.__file__).resolve().is_relative_to(root) "
         "for m in (amplify_ops, bototoolkit))",
@@ -92,47 +97,47 @@ def smoke_install(wheel: Path, requirements: Path, target: Path, env: dict[str, 
         env=env,
     )
     suffix = ".exe" if os.name == "nt" else ""
-    for name in ("bototoolkit", "amplify-ops"):
-        command = str(binaries / f"{name}{suffix}")
-        run(command, "--help", cwd=target.parent, env=env)
-        run(command, "tui", "--help", cwd=target.parent, env=env)
-        # Base installs must remain usable without the optional terminal framework.
-        result = subprocess.run(
-            [command, "tui", "--demo"],
-            cwd=target.parent,
-            env=env,
-            capture_output=True,
-            text=True,
-            timeout=30,
-        )
-        assert result.returncode == 1 and "Install the TUI extra" in result.stderr
-        assert not result.stdout
-        # Exercise doctor outside any checkout, with no AWS options or repository tools.
-        result = subprocess.run(
-            [command, "doctor", "--format", "json"],
-            cwd=target.parent,
-            env=env,
-            capture_output=True,
-            text=True,
-            check=True,
-            timeout=30,
-        )
-        report = json.loads(result.stdout)
-        assert report["report_type"] == "doctor" and report["schema_version"] == 1
-        assert report["complete"] is True and not result.stderr
-        statuses = {check["name"]: check["status"] for check in report["checks"]}
-        assert statuses["identity"] == statuses["project_files"] == "skip"
-        assert not any(status == "fail" for status in statuses.values())
-        result = subprocess.run(
-            [command, "identity"],
-            cwd=target.parent,
-            env=env,
-            capture_output=True,
-            text=True,
-            timeout=30,
-        )
-        assert result.returncode == 2 and not result.stdout
-        assert "--profile" in Text.from_ansi(result.stderr).plain
+    assert not (binaries / f"amplify-ops{suffix}").exists()
+    command = str(binaries / f"bototoolkit{suffix}")
+    run(command, "--help", cwd=target.parent, env=env)
+    run(command, "browse", "--help", cwd=target.parent, env=env)
+    # Base installs must remain usable without the optional terminal framework.
+    result = subprocess.run(
+        [command, "browse", "--demo"],
+        cwd=target.parent,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert result.returncode == 1 and "Install the browse extra" in result.stderr
+    assert not result.stdout
+    # Exercise doctor outside any checkout, with no AWS options or repository tools.
+    result = subprocess.run(
+        [command, "doctor", "--format", "json"],
+        cwd=target.parent,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=True,
+        timeout=30,
+    )
+    report = json.loads(result.stdout)
+    assert report["report_type"] == "doctor" and report["schema_version"] == 1
+    assert report["complete"] is True and not result.stderr
+    statuses = {check["name"]: check["status"] for check in report["checks"]}
+    assert statuses["identity"] == statuses["project_files"] == "skip"
+    assert not any(status == "fail" for status in statuses.values())
+    result = subprocess.run(
+        [command, "identity"],
+        cwd=target.parent,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert result.returncode == 2 and not result.stdout
+    assert "--profile" in Text.from_ansi(result.stderr).plain
 
 
 def main() -> None:
@@ -194,7 +199,7 @@ def main() -> None:
             "--locked",
             "--no-dev",
             "--extra",
-            "tui",
+            "browse",
             "--no-emit-project",
             "--no-header",
             "--quiet",

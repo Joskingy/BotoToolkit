@@ -85,7 +85,7 @@ def configure(
         list[str] | None, typer.Option(help="Selected AWS region; repeat for inventory.")
     ] = None,
 ) -> None:
-    """Check local setup, verify AWS identity, and report on AWS resources."""
+    """Inspect your AWS resources from the terminal."""
     if profile is not None and (
         not profile.strip()
         or "<" in profile
@@ -111,7 +111,7 @@ def require_aws_options(profile: str | None, account: str | None, regions: list[
 
 
 @app.command()
-def tui(
+def browse(
     ctx: typer.Context,
     demo: Annotated[bool, typer.Option(help="Browse built-in synthetic data offline.")] = False,
     live: Annotated[bool, typer.Option(help="Browse read-only reports in one AWS region.")] = False,
@@ -127,18 +127,24 @@ def tui(
     if live:
         require_aws_options(settings.profile, settings.expected_account, settings.regions)
         if len(settings.regions) != 1:
-            raise typer.BadParameter("Live TUI requires exactly one region.", param_hint="--region")
+            raise typer.BadParameter(
+                "Live browsing requires exactly one region.", param_hint="--region"
+            )
     if view_arn is not None:
         if not live:
             raise typer.BadParameter("Use this option with --live.", param_hint="--view-arn")
         validate_resource_view(settings, view_arn)
     if importlib.util.find_spec("textual") is None:
         diagnostics.print(
-            "Install the TUI extra from your trusted checkout: uv sync --locked --extra tui."
+            "Install the browse extra. From a source checkout, run:\n"
+            "uv sync --locked --extra browse\n"
+            "For a wheel install, reinstall your verified wheel with [browse]."
         )
         raise typer.Exit(1)
     if not sys.stdin.isatty() or not sys.stdout.isatty():
-        diagnostics.print("TUI requires an interactive terminal. Use existing table/JSON commands.")
+        diagnostics.print(
+            "Browse requires an interactive terminal. Use existing table/JSON commands."
+        )
         raise typer.Exit(2)
     # Lazy import keeps normal CLI commands independent of the optional UI dependency.
     from amplify_ops.tui import InventoryBrowser, View

@@ -1,7 +1,6 @@
 # CLI workflow
 
-These diagrams describe the AWS operations in `bototoolkit` and its compatible
-`amplify-ops` command. Both entry points run the same workflow.
+These diagrams describe AWS operations in BotoToolkit.
 AWS operations require an explicit profile, expected account, and region. Local
 diagnostics and command help are outside the workflow shown here.
 Select your local AWS profile and obtain the account and region from private
@@ -11,13 +10,14 @@ settings or the operator.
 
 ```mermaid
 flowchart TD
-    A["Run amplify-ops with profile, expected account, region, and command"] --> B["Validate global and command-specific inputs"]
+    A["Run bototoolkit with profile, expected account, region, and command"] --> B["Validate global and command-specific inputs"]
     B --> C["Create explicit profile session and call STS GetCallerIdentity"]
     C --> D{"Account matches and identity is valid?"}
     D -- "No" --> X["Stop: no resource collection or deployment"]
     D -- "Yes" --> E{"Selected command"}
     E -->|identity| I["Display verified identity"]
     E -->|"inventory, investigate, compare,<br/>api-keys, costs, stale"| R["Read data and prepare a report"]
+    E -->|"ec2 inventory, ebs candidates, cloudwatch alarms,<br/>cloudtrail changes, resources list/summary"| R
     R --> O["Display table or JSON;<br/>optionally write a new JSON file"]
     E -->|deploy-plan| P["Read-only preflight for a completed job"]
     P --> F["Write a retry plan; expires after 15 minutes"]
