@@ -10,8 +10,8 @@ Install the locked environment first, then check it:
 
 ```powershell
 uv sync --locked
-uv run --offline --no-sync amplify-ops doctor --project .
-uv run --offline --no-sync amplify-ops doctor --project . --format json
+uv run --offline --no-sync bototoolkit doctor --project .
+uv run --offline --no-sync bototoolkit doctor --project . --format json
 ```
 
 The `--offline --no-sync` flags belong to uv. They keep the launcher from
@@ -22,8 +22,8 @@ doctor does not infer a repository from the current working directory.
 ## From an installed tool
 
 ```powershell
-amplify-ops doctor
-amplify-ops doctor --format json
+bototoolkit doctor
+bototoolkit doctor --format json
 ```
 
 Repository and uv checks are skipped unless `--project` is supplied. A standalone
@@ -39,7 +39,7 @@ mapping. Do not commit the
 resolved value or copy an STS response just to make the comparison pass.
 
 ```powershell
-uv run --offline --no-sync amplify-ops --profile PROFILE_NAME --expected-account ACCOUNT_ID --region us-east-1 doctor
+uv run --offline --no-sync bototoolkit --profile PROFILE_NAME --expected-account ACCOUNT_ID --region us-east-1 doctor
 ```
 
 This reads bounded local AWS INI configuration only to determine whether the
@@ -54,7 +54,7 @@ configuration file is allowed; an explicitly configured missing file fails.
 ## Opt in to identity verification
 
 ```powershell
-uv run --offline --no-sync amplify-ops --profile PROFILE_NAME --expected-account ACCOUNT_ID --region us-east-1 doctor --online
+uv run --offline --no-sync bototoolkit --profile PROFILE_NAME --expected-account ACCOUNT_ID --region us-east-1 doctor --online
 ```
 
 Online mode requires all three AWS options and exactly one region. After local
@@ -75,7 +75,7 @@ and Stubber; live verification is a separate operator action.
 | Check | What it establishes |
 | --- | --- |
 | Python | The running interpreter is Python 3.15 or newer. |
-| Required packages | Metadata for amplify-ops, boto3, Typer, and Rich is available. This alone does not prove version compatibility. |
+| Required packages | Metadata for BotoToolkit, boto3, Typer, and Rich is available. This alone does not prove version compatibility. |
 | AWS profile | The selected profile exists in bounded local INI configuration. Values are never exported. |
 | Account and regions | Explicit selections have valid syntax. Offline checks cannot establish account ownership or regional service availability. |
 | Project files | The explicitly selected directory contains pyproject.toml and uv.lock. |
@@ -95,7 +95,7 @@ CI, deployment readiness, or full SDK/service compatibility.
 ## Output and automation
 
 ```powershell
-uv run --offline --no-sync amplify-ops doctor --project . --format json --output .amplify-ops/doctor.json
+uv run --offline --no-sync bototoolkit doctor --project . --format json --output reports/doctor.json
 ```
 
 Create the ignored destination directory first. The output file is created

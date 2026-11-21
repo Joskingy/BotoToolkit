@@ -2,7 +2,7 @@
 
 Use `dev.ps1` from PowerShell to create feature worktrees, check your work, and
 open GitHub pull requests. The implementation lives in `scripts/dev.py`; it is
-contributor tooling and is not an installed amplify-ops command.
+contributor tooling and is not an installed BotoToolkit command.
 
 ## Prerequisites and first use
 
@@ -81,6 +81,17 @@ Checks use this checkout's `.venv`; child process scratch files use its ignored
 `.uv/check-temp` directory. An activated environment from another worktree is
 not reused. Checks do not contact AWS. Setup/package downloads may need the
 network; the application tests use mocked AWS and GitHub responses.
+
+On Windows, a long worktree path can cause the nested Git fixture in
+`test_host_configuration_cannot_break_stubs_or_activate_providers` to fail.
+To retry the full check, open a fresh PowerShell session in the worktree
+and give pytest a short directory dedicated to disposable test files.
+Pytest clears this directory on each run.
+
+```powershell
+$env:PYTEST_ADDOPTS = '--basetemp=.uv/q'
+.\dev.ps1 check
+```
 
 ## 3. Review, commit, and open the feature PR
 

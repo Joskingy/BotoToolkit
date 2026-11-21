@@ -2,9 +2,7 @@
 
 [BotoToolkit v0.2.0](https://github.com/Joskingy/BotoToolkit/releases/tag/v0.2.0)
 helps you inspect AWS resources, deployments, alarms, recent changes, and costs.
-Run `bototoolkit`. The existing `amplify-ops` command keeps the same options and
-behavior.
-The examples use PowerShell.
+Run `bototoolkit` with a command. The examples use PowerShell.
 
 ## 1. Check the requirements
 
@@ -88,6 +86,25 @@ intend to use. If verification fails, stop and correct the profile or confirm
 the expected account with your administrator. The examples below reuse
 `@AwsArgs` in the same PowerShell session. In a new session, set it again.
 
+### Keep developer credentials private
+
+For team onboarding, use an individual federated sign-in with MFA and temporary
+credentials. Ask for a read-only permission set scoped to the reports you use.
+Reserve the Amplify retry permission for a separate deployment role. Each
+developer can choose a local profile name and pass it with `--profile`.
+
+If you enter a key pair with plain `aws configure`, the AWS CLI normally saves
+it in a plaintext file named `credentials` under `%USERPROFILE%\.aws` on
+Windows or `~/.aws` on macOS and Linux. The adjacent `config` file holds
+settings such as region and SSO profile configuration. IAM Identity Center
+uses a browser sign-in and caches sensitive session tokens under
+`.aws/sso/cache` in your home directory. Keep the entire `.aws` directory
+outside your checkout and shared folders. Restrict filesystem access to your
+OS user and authorized administrators. Keep keys and cached tokens out of
+environment files, support tickets, screenshots, and Git.
+[AWS CLI file locations](https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-files.html)
+and [IAM security guidance](https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html).
+
 ## 4. Run your first report
 
 Start with Amplify inventory to see apps, branches, and their latest deployments
@@ -104,11 +121,13 @@ bototoolkit @AwsArgs inventory --format json --output $ReportPath
 
 An empty complete report means the scan returned zero matching resources.
 A partial report can still contain rows. Treat unread data as unknown. Keep
-reports and audit files in private local storage.
+reports and audit files in a directory only the intended operators can read.
+The `reports/` directory is ignored by Git in a checkout. Filesystem permissions
+control who else on the machine can read it.
 
 ## 5. Try the terminal browser
 
-To add the optional terminal browser, return to the folder containing the
+For the published v0.2.0 wheel, return to the folder containing the
 verified wheel and reinstall it with the `tui` extra.
 
 ```powershell
@@ -129,18 +148,19 @@ details. The live browser uses one selected region. See the
 [terminal browser guide](tui.md) for alarm history, Resource Explorer setup, and
 scan limits.
 
-The **v0.3.0 preview** adds Cost Explorer. To try it from a
+The **v0.3.0 preview** uses `browse` for the interactive command and install
+extra. It also adds Cost Explorer. To try Browse from a
 [source checkout](../README.md#work-from-a-source-checkout) with the same AWS
 settings, run:
 
 ```powershell
-uv sync --locked --extra tui
-uv run --locked bototoolkit @AwsArgs tui --live
+uv sync --locked --extra browse
+uv run --locked bototoolkit @AwsArgs browse --live
 ```
 
 Press **F2** and choose **Cost Explorer**. The console link opens the free web
 view using your browser’s AWS sign-in. Check the account shown there. To see
-service costs inside the TUI, press **F5**. This starts a billable query for the
+service costs inside Browse, press **F5**. This starts a billable query for the
 last 30 completed UTC days across all billing regions of the verified account.
 Switching back to this view reuses the results until you quit.
 

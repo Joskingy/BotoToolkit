@@ -14,7 +14,7 @@ The OSV workflow also runs weekly on Monday at 07:23 UTC on the default branch.
 | quality | ubuntu-24.04 | Lockfile consistency, Ruff lint and formatting |
 | tests (ubuntu-24.04) | ubuntu-24.04 | Offline AWS/GitHub regressions and real scanner integration |
 | tests (windows-latest) | windows-latest | The same regression suite on Windows |
-| package | ubuntu-24.04 | Wheel/source builds, archive inspection, clean installations, both console commands |
+| package | ubuntu-24.04 | Wheel/source builds, archive inspection, clean installations, the bototoolkit entry point |
 | python-vulnerabilities | ubuntu-24.04 | All public PyPI versions in uv.lock checked against OSV; findings or incomplete audits fail |
 
 Application CI pins uv 0.13.4 and stable Python 3.15.0. The project retains its
@@ -38,8 +38,8 @@ paths, then tests two fresh environments: the wheel and a wheel rebuilt from the
 source archive. Runtime dependencies are exported from uv.lock and installed with
 hash verification. Local package installs use `--no-deps`. Import checks use
 isolated Python and verify package locations inside the fresh environment;
-both `bototoolkit` and `amplify-ops` must support help, offline doctor JSON,
-and missing-option errors. Base installs explain the missing TUI extra; the
+`bototoolkit` must support help, offline doctor JSON,
+and missing-option errors. Base installs explain the missing browse extra; the
 extra is then installed and the demo is exercised without an AWS session. Temporary
 environments are removed afterward. Initial execution may download locked wheels
 and the build backend; no live AWS calls are involved.
@@ -50,8 +50,11 @@ queue runs use independent run IDs and do not cancel PR checks or each other.
 
 ## Configure or verify in GitHub
 
-These settings require repository administration and are not activated by local
-files alone. Remote execution and enforcement have not been verified locally.
+On November 19, 2026, the active GitHub rules for `main` and `dev` required a
+pull request, an up-to-date branch, all six checks above, and resolution of
+review threads. Both branches allowed merge commits and required zero approving
+reviews. Code-owner approval was optional. Use the checklist below when setting
+up another repository or reviewing these settings.
 
 1. Push the reviewed files to OWNER/REPOSITORY. Enable GitHub Actions and ensure
    organization policies allow the pinned checkout/setup-uv actions and hosted

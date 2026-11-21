@@ -15,7 +15,7 @@ from amplify_ops.models import DoctorCheck
 
 MAX_CONFIG_BYTES = 256 * 1024
 UV_TIMEOUT_SECONDS = 30
-DISTRIBUTIONS = ("amplify-ops", "boto3", "typer", "rich")
+DISTRIBUTIONS = ("bototoolkit", "boto3", "typer", "rich")
 
 
 def collect_checks(

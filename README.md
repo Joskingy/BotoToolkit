@@ -1,14 +1,12 @@
 # BotoToolkit
 
-Inspect AWS through a command-line interface or an optional terminal browser.
+Inspect your AWS resources from the terminal.
 Reports cover Amplify deployments and configuration, EC2 instances, unattached
 EBS volumes, CloudWatch alarms, CloudTrail changes, Resource Explorer inventory,
 AppSync key expiry, costs, and stale environments.
 
-Run `bototoolkit` with a command. Existing `amplify-ops` commands keep working
-with the same options, output, and exit codes. Both names launch the same CLI.
-All commands except **deploy** are read-only. Deploy submits an explicitly
-reviewed RETRY; no live writes were performed during implementation.
+Only **deploy** writes to AWS. It submits a retry for a completed Amplify job
+after you review and confirm the plan.
 
 See [remaining command details](docs/remaining-commands.md) for AppSync, costs,
 stale evidence, deployment confirmation/audit behavior, and added IAM policies.
@@ -19,13 +17,22 @@ read-only commands, and controlled retry path.
 
 ## v0.3.0 preview
 
-The live TUI adds **Cost Explorer** to the **F2** view picker. See service
+In v0.3.0 the package and sole command are named `bototoolkit`. Update scripts
+from `amplify-ops` to `bototoolkit` and replace the `tui` command and install
+extra with `browse`. For example, run `bototoolkit browse --demo`.
+If you used `uv tool install` for v0.2.0, uninstall the old tool with
+`uv tool uninstall amplify-ops` before installing the renamed package. From a trusted
+checkout, run `uv tool install --python 3.15.0 '.[browse]'`. If you run the app
+with `uv run`, use `uv sync --locked --extra browse`. Keep using the same
+private audit directory for deployments.
+
+Live Browse adds **Cost Explorer** to the **F2** view picker. See service
 spending for the last 30 completed UTC days across all billing regions of the
 verified account. Open the free AWS console view using your browser’s sign-in,
-or press **F5** to verify the account and load costs into the TUI. Switching
+or press **F5** to verify the account and load costs into Browse. Switching
 back shows the session's cached results.
 
-Only **F5** starts a billable Cost Explorer scan in the TUI. Each scan is capped at
+Only **F5** starts a billable Cost Explorer scan in Browse. Each scan is capped at
 10 pages. The [terminal browser guide](docs/tui.md#live-reports) covers access,
 cost scope, and partial results. Try the preview from a
 [source checkout](#work-from-a-source-checkout). The published wheel below is
@@ -37,16 +44,16 @@ This release focuses on a first-time user's path from installation to a verified
 AWS report. [GitHub release and notes](https://github.com/Joskingy/BotoToolkit/releases/tag/v0.2.0)
 
 - `bototoolkit` launches the full CLI; `amplify-ops` remains compatible.
-- Live TUI accepts the user's chosen profile. Explicit account and region
+- The live browser accepts the user's chosen profile. Explicit account and region
   selection, STS verification before each scan, and read-only access remain.
 - Checkout installation pins stable Python 3.15.0 to match CI.
-- The public user guide covers setup, sign-in, first reports, demo/live TUI,
+- The public user guide covers setup, sign-in, first reports, the terminal browser,
   exports, and troubleshooting.
 - Installation checks exercise both command names from a wheel and a rebuilt
   source distribution, including offline diagnostics and missing AWS options.
 
 **Requirements and limits:** Python 3.15 or newer is required. CI validates
-Python 3.15.0 on Windows and Ubuntu. The TUI extra is optional. Live TUI scans
+Python 3.15.0 on Windows and Ubuntu. The terminal browser is optional. Its live mode scans
 one selected region on demand, with a 100-call budget and a 30-second deadline
 for starting new calls. In-flight requests may finish later. Resource
 Explorer covers indexed resources allowed by its view. Partial results are
@@ -79,14 +86,16 @@ bototoolkit --help
 The installed command works from any folder. See the [user guide](docs/quick-start.md#2-install-and-check-bototoolkit)
 for setup diagnostics and the optional terminal browser. The reference examples
 below use `uv run` from a source checkout. With the wheel installed, invoke
-`bototoolkit` or `amplify-ops` directly, omitting the `uv run` prefix and its options.
+`bototoolkit` directly, omitting the `uv run` prefix and its options.
 
 ### Work from a source checkout
 
-The repository pins stable Python 3.15.0 in `.python-version` and dependencies
-in `uv.lock`.
+For a first checkout, clone the repository and enter its directory. If you
+already have a checkout, start with `uv sync` in the repository root.
 
 ```powershell
+git clone https://github.com/Joskingy/BotoToolkit.git
+Set-Location BotoToolkit
 uv sync --locked
 uv run --locked bototoolkit --help
 uv run --offline --no-sync bototoolkit doctor --project .
@@ -99,8 +108,8 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the complete first-clone checklist,
 security-hook setup, tests, and folder responsibilities.
 
 For a source checkout, install the optional terminal browser with
-`uv sync --locked --extra tui`, then run
-`uv run --offline --no-sync bototoolkit tui --demo` to explore synthetic data.
+`uv sync --locked --extra browse`, then run
+`uv run --offline --no-sync bototoolkit browse --demo` to explore synthetic data.
 
 ## Check your setup
 
@@ -130,16 +139,16 @@ them locally before running any command; never commit the resolved values. Use t
 derive it from STS merely to make the assertion pass.
 
 ```powershell
-uv run amplify-ops --profile PROFILE_NAME --expected-account ACCOUNT_ID --region us-east-1 identity
-uv run amplify-ops --profile PROFILE_NAME --expected-account ACCOUNT_ID --region us-east-1 inventory --format table
-uv run amplify-ops --profile PROFILE_NAME --expected-account ACCOUNT_ID --region us-east-1 inventory --format json --output inventory.json
+uv run bototoolkit --profile PROFILE_NAME --expected-account ACCOUNT_ID --region us-east-1 identity
+uv run bototoolkit --profile PROFILE_NAME --expected-account ACCOUNT_ID --region us-east-1 inventory --format table
+uv run bototoolkit --profile PROFILE_NAME --expected-account ACCOUNT_ID --region us-east-1 inventory --format json --output inventory.json
 ```
 
 To scan more than one explicitly selected region, repeat the global option
 **before** the command (substitute regions you intend to scan):
 
 ```powershell
-uv run amplify-ops --profile PROFILE_NAME --expected-account ACCOUNT_ID --region us-east-1 --region us-west-2 inventory --format json
+uv run bototoolkit --profile PROFILE_NAME --expected-account ACCOUNT_ID --region us-east-1 --region us-west-2 inventory --format json
 ```
 
 One Boto3 session is created with `profile_name` explicitly set. All clients
@@ -163,9 +172,9 @@ Use the same explicit profile, independently confirmed account ID, and region
 options for the read-only operations reports.
 
 ```powershell
-uv run --locked amplify-ops --profile PROFILE_NAME --expected-account ACCOUNT_ID --region REGION ec2 inventory --environment dev
-uv run --locked amplify-ops --profile PROFILE_NAME --expected-account ACCOUNT_ID --region REGION cloudwatch alarms --state ALARM
-uv run --locked amplify-ops --profile PROFILE_NAME --expected-account ACCOUNT_ID --region REGION cloudtrail changes --hours 24 --limit 100
+uv run --locked bototoolkit --profile PROFILE_NAME --expected-account ACCOUNT_ID --region REGION ec2 inventory --environment dev
+uv run --locked bototoolkit --profile PROFILE_NAME --expected-account ACCOUNT_ID --region REGION cloudwatch alarms --state ALARM
+uv run --locked bototoolkit --profile PROFILE_NAME --expected-account ACCOUNT_ID --region REGION cloudtrail changes --hours 24 --limit 100
 ```
 
 - EC2 inventory uses `ec2:DescribeInstances` and `ec2:DescribeInstanceStatus`.
@@ -188,16 +197,15 @@ Partial reports retain available rows and exit with code 3.
 
 ## Resource inventory and EBS cleanup review
 
-The operational CLI is `amplify-ops`. From the project directory, install the
-locked environment with `uv sync --locked`. Resolve the expected account and
-region locally and reuse the explicit profile arguments across commands.
+From a source checkout, reuse the profile, expected account, and region you
+verified during setup. The following commands use PowerShell.
 
 ```powershell
 $AwsArgs = @('--profile', 'PROFILE_NAME', '--expected-account', 'ACCOUNT_ID', '--region', 'REGION')
-uv run --locked amplify-ops @AwsArgs identity
-uv run --locked amplify-ops @AwsArgs resources list --view-arn VIEW_ARN --filter 'service:ec2'
-uv run --locked amplify-ops @AwsArgs resources summary --view-arn VIEW_ARN
-uv run --locked amplify-ops @AwsArgs ebs candidates --owner platform
+uv run --locked bototoolkit @AwsArgs identity
+uv run --locked bototoolkit @AwsArgs resources list --view-arn VIEW_ARN --filter 'service:ec2'
+uv run --locked bototoolkit @AwsArgs resources summary --view-arn VIEW_ARN
+uv run --locked bototoolkit @AwsArgs ebs candidates --owner platform
 ```
 
 For `resources`, use an existing Resource Explorer view owned by the selected
@@ -271,8 +279,8 @@ failure; `2` invalid/missing CLI arguments; `3` incomplete inventory/investigati
 ## Redacted dev/main configuration comparison (milestone 3)
 
 ```powershell
-uv run amplify-ops --profile PROFILE_NAME --expected-account ACCOUNT_ID --region us-east-1 compare --app-id APP_ID --source dev --target main
-uv run amplify-ops --profile PROFILE_NAME --expected-account ACCOUNT_ID --region us-east-1 compare --app-id APP_ID --source dev --target main --format json --output comparison.json
+uv run bototoolkit --profile PROFILE_NAME --expected-account ACCOUNT_ID --region us-east-1 compare --app-id APP_ID --source dev --target main
+uv run bototoolkit --profile PROFILE_NAME --expected-account ACCOUNT_ID --region us-east-1 compare --app-id APP_ID --source dev --target main --format json --output comparison.json
 ```
 
 `--source` defaults to `dev` and `--target` to `main`. Choose any two distinct
@@ -346,8 +354,8 @@ failed. A failed history page prevents selection and produces a partial report;
 it never guesses from the successfully read pages.
 
 ```powershell
-uv run amplify-ops --profile PROFILE_NAME --expected-account ACCOUNT_ID --region us-east-1 investigate --app-id APP_ID --branch dev
-uv run amplify-ops --profile PROFILE_NAME --expected-account ACCOUNT_ID --region us-east-1 investigate --app-id APP_ID --branch dev --job-id 2 --inspect-logs --format json --output investigation.json
+uv run bototoolkit --profile PROFILE_NAME --expected-account ACCOUNT_ID --region us-east-1 investigate --app-id APP_ID --branch dev
+uv run bototoolkit --profile PROFILE_NAME --expected-account ACCOUNT_ID --region us-east-1 investigate --app-id APP_ID --branch dev --job-id 2 --inspect-logs --format json --output investigation.json
 ```
 
 `--job-id` bypasses history listing and investigates that exact job, including

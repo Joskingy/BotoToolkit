@@ -1,4 +1,4 @@
-# amplify-ops scope and status
+# BotoToolkit scope and status
 
 Core milestones 1–7 are implemented. Reporting and `deploy-plan` read AWS;
 `deploy` is the sole opt-in write path and supports completed-job RETRY only.
@@ -14,7 +14,7 @@ Core milestones 1–7 are implemented. Reporting and `deploy-plan` read AWS;
 | 7. Controlled retry | Expiring reviewed plans, exact confirmation, fresh preflight, persisted local claim, one submission attempt. |
 
 Local `doctor` diagnostics and optional STS-only verification are implemented.
-The optional TUI offers an offline demo and bounded, on-demand AWS reports. See [the TUI guide](docs/tui.md).
+Browse offers an offline demo and bounded, on-demand AWS reports. See [the Browse guide](docs/tui.md).
 The `dev.ps1` helper supports worktree setup, checks, feature PRs, and promotion.
 
 ## 0.2.0 public onboarding
@@ -31,9 +31,10 @@ Status: published. See the [v0.2.0 release notes](https://github.com/Joskingy/Bo
 
 ## 0.3.0 Cost Explorer in the terminal browser
 
-The live TUI shows service spending for the verified account using the
-existing read-only collector. It keeps results for the session and lets the
-operator refresh on demand.
+Live Browse shows service spending for the verified account using the
+existing read-only collector. F5 requests data and the session caches the result.
+The v0.3.0 package and command are named `bototoolkit`. Start the interactive
+view with `bototoolkit browse --demo` or supply AWS settings and `browse --live`.
 
 Status: implemented and tested. Release preparation is in progress.
 
