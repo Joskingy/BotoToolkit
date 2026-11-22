@@ -15,78 +15,66 @@ installation, AWS setup, and CLI and terminal browser examples.
 See the [CLI workflow diagrams](docs/cli-workflow.md) for the identity gate,
 read-only commands, and controlled retry path.
 
-## v0.3.0 preview
+## v0.3.0
 
-In v0.3.0 the package and sole command are named `bototoolkit`. Update scripts
-from `amplify-ops` to `bototoolkit` and replace the `tui` command and install
-extra with `browse`. For example, run `bototoolkit browse --demo`.
-If you used `uv tool install` for v0.2.0, uninstall the old tool with
-`uv tool uninstall amplify-ops` before installing the renamed package. From a trusted
-checkout, run `uv tool install --python 3.15.0 '.[browse]'`. If you run the app
-with `uv run`, use `uv sync --locked --extra browse`. Keep using the same
-private audit directory for deployments.
+BotoToolkit installs as the `bototoolkit` package and command. Its optional
+terminal browser opens with `bototoolkit browse`. See the
+[v0.3.0 release notes](https://github.com/Joskingy/BotoToolkit/releases/tag/v0.3.0).
 
-Live Browse adds **Cost Explorer** to the **F2** view picker. See service
-spending for the last 30 completed UTC days across all billing regions of the
-verified account. Open the free AWS console view using your browser’s sign-in,
-or press **F5** to verify the account and load costs into Browse. Switching
-back shows the session's cached results.
+In live Browse, select **Cost Explorer** with **F2** to review spending by
+service for the last 30 completed UTC days across all billing regions of the
+verified account. Open the free AWS console with your browser's sign-in, or
+press **F5** to verify the account and start a billable API scan of up to
+10 pages. Switching views reuses the results for the current session. The
+[terminal browser guide](docs/tui.md#live-reports) explains access and partial
+results.
 
-Only **F5** starts a billable Cost Explorer scan in Browse. Each scan is capped at
-10 pages. The [terminal browser guide](docs/tui.md#live-reports) covers access,
-cost scope, and partial results. Try the preview from a
-[source checkout](#work-from-a-source-checkout). The published wheel below is
-still v0.2.0.
-
-## v0.2.0
-
-This release focuses on a first-time user's path from installation to a verified
-AWS report. [GitHub release and notes](https://github.com/Joskingy/BotoToolkit/releases/tag/v0.2.0)
-
-- `bototoolkit` launches the full CLI; `amplify-ops` remains compatible.
-- The live browser accepts the user's chosen profile. Explicit account and region
-  selection, STS verification before each scan, and read-only access remain.
-- Checkout installation pins stable Python 3.15.0 to match CI.
-- The public user guide covers setup, sign-in, first reports, the terminal browser,
-  exports, and troubleshooting.
-- Installation checks exercise both command names from a wheel and a rebuilt
-  source distribution, including offline diagnostics and missing AWS options.
-
-**Requirements and limits:** Python 3.15 or newer is required. CI validates
-Python 3.15.0 on Windows and Ubuntu. The terminal browser is optional. Its live mode scans
-one selected region on demand, with a 100-call budget and a 30-second deadline
-for starting new calls. In-flight requests may finish later. Resource
-Explorer covers indexed resources allowed by its view. Partial results are
-incomplete evidence. Cost Explorer requests can incur AWS charges. Reports
-contain account metadata and should remain private.
+Python 3.15 or newer is required. CI validates Python 3.15.0 on Windows
+and Ubuntu. Live Browse scans one selected region on demand, with a 100-call
+budget for general inventory and a 30-second deadline for starting new calls.
+In-flight requests may finish later. Resource Explorer covers indexed
+resources allowed by its view. Keep reports private.
 
 ## Setup
 
 ### Install the release wheel
 
 Install Python 3.15 or newer and [uv](https://docs.astral.sh/uv/getting-started/installation/).
-Download the [wheel](https://github.com/Joskingy/BotoToolkit/releases/download/v0.2.0/amplify_ops-0.2.0-py3-none-any.whl)
-and [SHA256SUMS](https://github.com/Joskingy/BotoToolkit/releases/download/v0.2.0/SHA256SUMS)
-into the same folder. Open PowerShell in that folder and check the wheel's SHA-256 hash.
+Download the [v0.3.0 wheel](https://github.com/Joskingy/BotoToolkit/releases/download/v0.3.0/bototoolkit-0.3.0-py3-none-any.whl) and
+[SHA256SUMS](https://github.com/Joskingy/BotoToolkit/releases/download/v0.3.0/SHA256SUMS) into the same folder. Open PowerShell there
+and check the wheel's SHA-256 hash.
 
 ```powershell
-Get-FileHash -Algorithm SHA256 -LiteralPath ./amplify_ops-0.2.0-py3-none-any.whl
+Get-FileHash -Algorithm SHA256 -LiteralPath ./bototoolkit-0.3.0-py3-none-any.whl
 Get-Content -LiteralPath ./SHA256SUMS
 ```
 
-Compare the hash with the line for `amplify_ops-0.2.0-py3-none-any.whl` in
-`SHA256SUMS`. Letter case does not matter. If the hashes differ, download both
-files again from the release. Install the wheel after the hashes match.
+Compare the full hash with the line for `bototoolkit-0.3.0-py3-none-any.whl` in `SHA256SUMS`. Letter
+case does not matter. If the hashes differ, download both files again from the
+release. Install only after the hashes match.
+
+If you installed the old package with uv, run `uv tool uninstall amplify-ops`
+before installing the renamed package. Update scripts to use `bototoolkit`
+in place of `amplify-ops` and `browse` in place of `tui`. Keep using the same
+private audit directory for deployments.
 
 ```powershell
-uv tool install --python 3.15.0 ./amplify_ops-0.2.0-py3-none-any.whl
+uv tool install --python 3.15.0 ./bototoolkit-0.3.0-py3-none-any.whl
 bototoolkit --help
 ```
 
-The installed command works from any folder. See the [user guide](docs/quick-start.md#2-install-and-check-bototoolkit)
-for setup diagnostics and the optional terminal browser. The reference examples
-below use `uv run` from a source checkout. With the wheel installed, invoke
-`bototoolkit` directly, omitting the `uv run` prefix and its options.
+For the optional terminal browser, install the verified wheel with the
+`[browse]` extra, then start the offline demo.
+
+```powershell
+uv tool install --force --python 3.15.0 './bototoolkit-0.3.0-py3-none-any.whl[browse]'
+bototoolkit browse --demo
+```
+
+The installed command works from any folder. See the
+[user guide](docs/quick-start.md#2-install-and-check-bototoolkit) for setup
+diagnostics. The reference examples below use `uv run` from a source
+checkout. With the wheel installed, invoke `bototoolkit` directly.
 
 ### Work from a source checkout
 
