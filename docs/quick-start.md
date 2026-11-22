@@ -1,6 +1,6 @@
 # BotoToolkit user guide
 
-[BotoToolkit v0.2.0](https://github.com/Joskingy/BotoToolkit/releases/tag/v0.2.0)
+[BotoToolkit v0.3.0](https://github.com/Joskingy/BotoToolkit/releases/tag/v0.3.0)
 helps you inspect AWS resources, deployments, alarms, recent changes, and costs.
 Run `bototoolkit` with a command. The examples use PowerShell.
 
@@ -19,22 +19,30 @@ and [AWS CLI v2](https://docs.aws.amazon.com/cli/latest/userguide/getting-starte
 
 ## 2. Install and check BotoToolkit
 
-From the [v0.2.0 release](https://github.com/Joskingy/BotoToolkit/releases/tag/v0.2.0),
-download `amplify_ops-0.2.0-py3-none-any.whl` and `SHA256SUMS` into the same
-folder. Open PowerShell in that folder and check the wheel's SHA-256 hash.
+Download the [v0.3.0 wheel](https://github.com/Joskingy/BotoToolkit/releases/download/v0.3.0/bototoolkit-0.3.0-py3-none-any.whl) and
+[SHA256SUMS](https://github.com/Joskingy/BotoToolkit/releases/download/v0.3.0/SHA256SUMS) into the same folder. Open PowerShell there
+and check the wheel's SHA-256 hash.
 
 ```powershell
-Get-FileHash -Algorithm SHA256 -LiteralPath ./amplify_ops-0.2.0-py3-none-any.whl
+Get-FileHash -Algorithm SHA256 -LiteralPath ./bototoolkit-0.3.0-py3-none-any.whl
 Get-Content -LiteralPath ./SHA256SUMS
 ```
 
-Compare the `Hash` value with the line for `amplify_ops-0.2.0-py3-none-any.whl`
-in `SHA256SUMS`. Letter case does not matter. If the hashes differ, download
-both files again from the release. Once the hashes match, install the wheel and
-run the setup checks.
+Compare the full hash with the line for `bototoolkit-0.3.0-py3-none-any.whl` in `SHA256SUMS`. Letter
+case does not matter. If the hashes differ, download both files again from the
+release. Install only after the hashes match.
+
+If you installed the old package with uv, run `uv tool uninstall amplify-ops`
+before installing the renamed package. Update scripts to call `bototoolkit`
+in place of `amplify-ops` and `browse` in place of `tui`. The optional install
+extra is now `[browse]`. Keep using the same private audit directory for
+deployments.
+
+Run the installation and setup checks from the folder containing the verified
+wheel.
 
 ```powershell
-uv tool install --python 3.15.0 ./amplify_ops-0.2.0-py3-none-any.whl
+uv tool install --python 3.15.0 ./bototoolkit-0.3.0-py3-none-any.whl
 bototoolkit --help
 bototoolkit doctor
 ```
@@ -127,19 +135,18 @@ control who else on the machine can read it.
 
 ## 5. Try the terminal browser
 
-For the published v0.2.0 wheel, return to the folder containing the
-verified wheel and reinstall it with the `tui` extra.
+Return to the folder containing the verified wheel and reinstall it with the `browse` extra.
 
 ```powershell
-uv tool install --force --python 3.15.0 './amplify_ops-0.2.0-py3-none-any.whl[tui]'
-bototoolkit tui --demo
+uv tool install --force --python 3.15.0 './bototoolkit-0.3.0-py3-none-any.whl[browse]'
+bototoolkit browse --demo
 ```
 
 The demo shows a single synthetic Amplify view. Quit with **Ctrl+Q**, then use
 your AWS settings from step 3 to open a live session.
 
 ```powershell
-bototoolkit @AwsArgs tui --live
+bototoolkit @AwsArgs browse --live
 ```
 
 The live session opens on Amplify. Click the highlighted **AWS view** selector
@@ -147,16 +154,6 @@ or press **F2** to switch reports. Use **/** to search and **Up/Down** to see ro
 details. The live browser uses one selected region. See the
 [terminal browser guide](tui.md) for alarm history, Resource Explorer setup, and
 scan limits.
-
-The **v0.3.0 preview** uses `browse` for the interactive command and install
-extra. It also adds Cost Explorer. To try Browse from a
-[source checkout](../README.md#work-from-a-source-checkout) with the same AWS
-settings, run:
-
-```powershell
-uv sync --locked --extra browse
-uv run --locked bototoolkit @AwsArgs browse --live
-```
 
 Press **F2** and choose **Cost Explorer**. The console link opens the free web
 view using your browser’s AWS sign-in. Check the account shown there. To see
@@ -266,7 +263,7 @@ for confirmations and handling uncertain submissions.
 | Access denied or partial results | Ask your administrator to review the read permissions for that command. Start with the [Amplify IAM reference](../README.md#required-iam-read-permissions) or the service reference above. |
 | Unknown option or missing argument | Run `bototoolkit COMMAND --help`, replacing `COMMAND` with the command you’re using. |
 
-See the [release notes and limits](../README.md#v020) for supported
+See the [release notes and limits](../README.md#v030) for supported
 Python and platform validation, inventory coverage, and live scan limits.
 
 Exit code 0 means the operation completed. Codes 1 and 2 indicate a failure or
