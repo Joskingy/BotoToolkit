@@ -67,6 +67,39 @@ def test_browse_search_and_reset_offline(tui_runner):
 
 
 @pytest.mark.usefixtures("forbid_aws_session")
+def test_offline_cloudwatch_summary_and_details(tui_runner):
+    async def journey():
+        browser = InventoryBrowser()
+        async with browser.run_test(size=(60, 20)) as pilot:
+            table = browser.query_one(DataTable)
+            summary = browser.query_one("#summary", Static)
+            await pilot.press("f2", "down", "enter")
+            await pilot.pause()
+            assert table.row_count == 4
+            assert "1 in alarm · 1 insufficient data · 1 OK · 1 unknown" in str(summary.content)
+            assert "4 of 4 alarms · Actions disabled: 1" in str(summary.content)
+            assert "Checkout error rate" in details(browser)
+            assert "State: In alarm | Actions: Enabled" in details(browser)
+            assert "2026-01-15 10:23:00 UTC (7 minutes before scan)" in details(browser)
+            assert browser.query_one(Footer).region.bottom <= 20
+
+            browser.query_one(Input).value = "insufficient data"
+            await pilot.pause()
+            assert table.row_count == 1
+            assert "1 of 4 alarms · Actions disabled: 1" in str(summary.content)
+            assert "1 in alarm · 1 insufficient data · 1 OK · 1 unknown" in str(summary.content)
+            assert "Actions: Disabled" in details(browser)
+            assert "Last state update: Unknown" in details(browser)
+            await pilot.press("ctrl+r")
+            assert table.row_count == 4
+            await pilot.press("f2", "up", "enter")
+            await pilot.pause()
+            assert table.row_count == 6
+
+    tui_runner.run(journey())
+
+
+@pytest.mark.usefixtures("forbid_aws_session")
 def test_partial_empty_and_no_deployments_are_distinct(tui_runner):
     async def journey():
         browser = InventoryBrowser()
@@ -235,7 +268,13 @@ def test_live_views_load_on_selection_and_reverify_before_each_scan(
     name = "[bold]demo-alarm[/bold]"
     alarm_types = {"AlarmTypes": ["MetricAlarm", "CompositeAlarm", "LogAlarm"]}
     alarm = {"CompositeAlarms": [{"AlarmName": name, "StateValue": "ALARM"}]}
-    alarms.add_response("describe_alarms", alarm, alarm_types)
+    alarms.add_response("describe_alarms", {**alarm, "NextToken": "more-alarms"}, alarm_types)
+    alarms.add_client_error(
+        "describe_alarms",
+        "AccessDeniedException",
+        "private-alarm-error",
+        expected_params={**alarm_types, "NextToken": "more-alarms"},
+    )
     alarms.add_response("describe_alarms", alarm, {**alarm_types, "AlarmNames": [name]})
     alarms.add_response(
         "describe_alarm_history",
@@ -384,10 +423,29 @@ def test_live_views_load_on_selection_and_reverify_before_each_scan(
             await select(View.CLOUDWATCH)
             assert name in details(browser) and "Recent state changes" not in details(browser)
             assert called_services().count("cloudwatch") == 1
+            summary = browser.query_one("#summary", Static)
+            assert "Partial · 1 of 1 retrieved" in str(summary.content)
+            assert "1 in alarm" in str(summary.content)
+            await pilot.resize_terminal(60, 20)
+            await pilot.pause()
+            assert browser.query_one("#detail-scroll").region.y < 19
+            await pilot.resize_terminal(110, 35)
+            await pilot.pause()
+            assert "Actions: Unknown" in details(browser)
+            assert "private-alarm-error" not in details(browser)
+            calls_before_search = called_services()
+            browser.query_one(Input).value = "no-such-alarm"
+            await pilot.pause()
+            assert table.row_count == 0
+            assert "Partial · 0 of 1 retrieved" in str(summary.content)
+            assert "1 in alarm" in str(summary.content)
+            await pilot.press("escape")
+            assert table.row_count == 1
+            assert called_services() == calls_before_search
             table.focus()
             await pilot.press("enter")
             await finish_scan()
-            assert "OK → ALARM" in details(browser)
+            assert "OK → In alarm" in details(browser)
             assert "private-history" not in details(browser)
 
             await select(View.CLOUDTRAIL)
