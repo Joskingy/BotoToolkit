@@ -1,6 +1,6 @@
 """Fixed fictional examples; no configuration, filesystem, SDK, or network access."""
 
-from amplify_ops.models import App, Branch, Deployment
+from amplify_ops.models import App, Branch, CloudWatchAlarm, Deployment, Identity, Report
 
 
 def demo_apps() -> list[App]:
@@ -64,3 +64,25 @@ def demo_apps() -> list[App]:
             branches_complete=True,
         ),
     ]
+
+
+def demo_alarms() -> Report:
+    region = "us-east-1"
+    return Report(
+        Identity("DEMO", ""),
+        "cloudwatch_alarms",
+        "2026-01-15T10:30:00Z",
+        [region],
+        rows=[
+            CloudWatchAlarm(
+                region, "Checkout error rate", "MetricAlarm", "ALARM", True, "2026-01-15T10:23:00Z"
+            ),
+            CloudWatchAlarm(
+                region, "Worker queue depth", "MetricAlarm", "INSUFFICIENT_DATA", False, None
+            ),
+            CloudWatchAlarm(
+                region, "Storefront health", "CompositeAlarm", "OK", True, "2026-01-15T08:30:00Z"
+            ),
+            CloudWatchAlarm(region, "Batch job heartbeat", "LogAlarm", None, None, None),
+        ],
+    )

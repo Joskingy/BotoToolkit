@@ -1,8 +1,10 @@
 """Optional terminal browser for offline demo and read-only AWS inventory."""
 
 import unicodedata
+from collections import Counter
 from collections.abc import Callable, Iterator, Sequence
 from dataclasses import fields
+from datetime import UTC, datetime
 from enum import StrEnum
 
 from rich.text import Text
@@ -24,7 +26,7 @@ from amplify_ops.models import (
     ReportRow,
 )
 from amplify_ops.models import App as ReportApp
-from amplify_ops.tui_demo import demo_apps
+from amplify_ops.tui_demo import demo_alarms, demo_apps
 
 
 def plain(value: str) -> str:
@@ -55,13 +57,20 @@ class View(StrEnum):
 
 REPORT_COLUMNS = {
     View.EBS: ("volume_id", "size_gib", "volume_type", "owner", "snapshot_check"),
-    View.CLOUDWATCH: ("state", "name", "alarm_type", "state_updated_at"),
     View.CLOUDTRAIL: ("timestamp", "event_name", "username", "event_source"),
     View.EC2: ("instance_id", "name", "state", "instance_status", "system_status"),
     View.RESOURCES: ("service", "resource_type", "region", "arn"),
     View.RESOURCE_COUNTS: ("service", "region", "count"),
     View.COSTS: ("service", "account_cost", "currency", "estimated_by_aws"),
 }
+ALARM_STATES = {
+    "ALARM": ("In alarm", "bold red"),
+    "INSUFFICIENT_DATA": ("Insufficient data", "yellow"),
+    "OK": ("OK", "green"),
+}
+ALARM_ORDER = {state: index for index, state in enumerate(ALARM_STATES)}
+ALARM_TYPES = {"MetricAlarm": "Metric", "CompositeAlarm": "Composite", "LogAlarm": "Log"}
+ACTION_LABELS = {True: "Enabled", False: "Disabled", None: "Unknown"}
 RESOURCE_VIEWS = (View.RESOURCES, View.RESOURCE_COUNTS)
 LIMIT_REASONS = {
     "PageLimit": "request limit reached",
@@ -88,6 +97,35 @@ def field_value(value: object) -> str:
     if isinstance(value, list):
         return ", ".join(str(item) for item in value) or "None"
     return str(value)
+
+
+def alarm_status(state: str | None) -> tuple[str, str]:
+    return ALARM_STATES.get(state or "", ("Unknown", ""))
+
+
+def alarm_update(value: str | None, scanned_at: str) -> str:
+    if value is None:
+        return "Unknown"
+    try:
+        updated = datetime.fromisoformat(value)
+        elapsed = datetime.fromisoformat(scanned_at) - updated
+    except ValueError, TypeError:
+        return value
+    if updated.tzinfo is None:
+        return value
+    exact = updated.astimezone(UTC).strftime("%Y-%m-%d %H:%M:%S UTC")
+    minutes = int(elapsed.total_seconds() // 60)
+    if minutes < 0:
+        return exact
+    if minutes == 0:
+        return f"{exact} (less than a minute before scan)"
+    if minutes >= 1440:
+        amount, unit = minutes // 1440, "day"
+    elif minutes >= 60:
+        amount, unit = minutes // 60, "hour"
+    else:
+        amount, unit = minutes, "minute"
+    return f"{exact} ({amount} {unit}{'s' if amount != 1 else ''} before scan)"
 
 
 class InventoryBrowser(App[None]):
@@ -117,7 +155,7 @@ class InventoryBrowser(App[None]):
     #view:disabled > SelectCurrent { background: $surface-lighten-1; }
     #cost-console { display: none; margin: 0 1; }
     #search { margin: 0 1; }
-    #summary { height: 1; margin: 0 1; }
+    #summary { height: auto; margin: 0 1; }
     #resources { height: 1fr; min-height: 5; margin: 0 1; border: round $primary; }
     #detail-scroll { height: 1fr; min-height: 5; max-height: 11;
                      margin: 0 1; border: round $accent; }
@@ -127,7 +165,7 @@ class InventoryBrowser(App[None]):
         Binding("f2", "open_views", "Views", priority=True),
         Binding("slash", "search", "Search"),
         Binding("escape", "reset_search", "Clear search", priority=True),
-        Binding("ctrl+r", "reset_demo", "Reset demo", priority=True),
+        Binding("ctrl+r", "reset_demo", "Reset", priority=True),
         Binding("f5", "refresh_costs", "Fetch costs (API fee)", priority=True),
         Binding("ctrl+q", "quit", "Quit", priority=True),
     ]
@@ -155,25 +193,28 @@ class InventoryBrowser(App[None]):
     def compose(self) -> ComposeResult:
         yield Header()
         banner = (
-            "OFFLINE DEMO | Synthetic data | AWS not connected | No write actions"
+            "OFFLINE DEMO | Sample data | AWS not connected"
             if self.load_view is None
             else "LIVE | Read-only"
         )
         yield Static(banner, id="banner", markup=False)
+        views = (
+            (View.AMPLIFY, View.CLOUDWATCH)
+            if self.load_view is None
+            else tuple(
+                view for view in View if self.resource_explorer or view not in RESOURCE_VIEWS
+            )
+        )
+        with Horizontal(id="view-bar"):
+            yield Label("Demo view" if self.load_view is None else "AWS view", id="view-label")
+            yield Select(
+                [(view.value, view) for view in views],
+                allow_blank=False,
+                value=self.view,
+                id="view",
+                compact=True,
+            )
         if self.load_view is not None:
-            with Horizontal(id="view-bar"):
-                yield Label("AWS view", id="view-label")
-                yield Select(
-                    [
-                        (view.value, view)
-                        for view in View
-                        if self.resource_explorer or view not in RESOURCE_VIEWS
-                    ],
-                    allow_blank=False,
-                    value=self.view,
-                    id="view",
-                    compact=True,
-                )
             yield Link(
                 "Open Cost Explorer in the AWS console (free)",
                 url="https://console.aws.amazon.com/costmanagement/home#/cost-explorer",
@@ -200,6 +241,8 @@ class InventoryBrowser(App[None]):
         table.clear(columns=True)
         if self.view is View.AMPLIFY:
             table.add_columns("App", "Branch", "Region", "Deployment")
+        elif self.view is View.CLOUDWATCH:
+            table.add_columns("State", "Alarm", "Actions")
         else:
             table.add_columns(*(field_label(name) for name in REPORT_COLUMNS[self.view]))
 
@@ -216,6 +259,9 @@ class InventoryBrowser(App[None]):
         self.apps = []
         self.report = None
         self.set_columns()
+        if self.load_view is None:
+            self.action_reset_demo()
+            return
         self.query_one(Input).value = ""
         self.query_one("#cost-console", Link).display = self.view is View.COSTS
         if self.view is View.COSTS:
@@ -311,12 +357,22 @@ class InventoryBrowser(App[None]):
             errors = [*report.errors, *(history.errors if history is not None else [])]
             limit = next((error for error in errors if error.category == "limit"), None)
             reason = LIMIT_REASONS.get(limit.code) if limit else None
-            status = f"PARTIAL ({reason or 'some AWS data could not be read'})"
+            unread = (
+                "data unread" if self.view is View.CLOUDWATCH else "some AWS data could not be read"
+            )
+            status = f"PARTIAL ({reason or unread})"
             self.empty_message = "No rows collected. The scan is incomplete."
         label = f"{self.view.value} history" if history is not None else self.view.value
         scope = "All billing regions" if self.view is View.COSTS else report.regions[0]
+        banner = self.query_one("#banner", Static)
+        if self.view is View.CLOUDWATCH:
+            identity = f"LIVE | Read-only | Account {report.identity.account_id} | {scope}"
+            started = datetime.fromisoformat((history or report).generated_at).astimezone(UTC)
+            run = f"{status} | {started:%Y-%m-%d %H:%M:%SZ}"
+            banner.update(plain(identity) + "\n" + plain(run))
+            return
         source = "Cached | " if cached else ""
-        self.query_one("#banner", Static).update(
+        banner.update(
             plain(
                 f"LIVE | Read-only | {label} | Account {report.identity.account_id} | "
                 f"{scope} | {status} | {source}Started {(history or report).generated_at}"
@@ -345,11 +401,14 @@ class InventoryBrowser(App[None]):
                     reverse=True,
                 )
             elif self.view is View.CLOUDWATCH:
-                rank = {"ALARM": 0, "INSUFFICIENT_DATA": 1, "OK": 2}
-                rows = sorted(
+                alarms = sorted(
                     (row for row in rows if isinstance(row, CloudWatchAlarm)),
-                    key=lambda row: (rank.get(row.state or "", 3), row.name.casefold()),
+                    key=lambda row: (ALARM_ORDER.get(row.state or "", 3), row.name.casefold()),
                 )
+                for alarm in alarms:
+                    state, _ = alarm_status(alarm.state)
+                    yield (state, alarm.name, ACTION_LABELS[alarm.actions_enabled]), alarm
+                return
             for row in rows:
                 yield (
                     tuple(field_value(getattr(row, name)) for name in REPORT_COLUMNS[self.view]),
@@ -368,16 +427,22 @@ class InventoryBrowser(App[None]):
                 if isinstance(row, tuple)
                 else tuple(field_value(getattr(row, field.name)) for field in fields(row))
             )
+            if isinstance(row, CloudWatchAlarm):
+                searchable = (*values, *searchable)
             if needle not in " ".join(plain(value) for value in searchable).casefold():
                 continue
             key = str(index)
             self.rows[key] = row
-            table.add_row(*(Text(plain(value)) for value in values), key=key)
-        hint = "Enter: alarm history" if self.view is View.CLOUDWATCH else "Tab: change panel"
-        sample = " | Sample: 2026-01-15" if self.load_view is None else ""
-        self.query_one("#summary", Static).update(
-            f"{len(self.rows)} matching rows{sample} | {hint}"
-        )
+            cells = [Text(plain(value)) for value in values]
+            if isinstance(row, CloudWatchAlarm):
+                cells[0].stylize(alarm_status(row.state)[1])
+            table.add_row(*cells, key=key)
+        if self.view is View.CLOUDWATCH and self.report is not None:
+            summary = self.alarm_summary(self.report)
+        else:
+            sample = " | Sample: 2026-01-15" if self.load_view is None else ""
+            summary = f"{len(self.rows)} matching rows{sample} | Tab: change panel"
+        self.query_one("#summary", Static).update(summary)
         if self.rows:
             table.move_cursor(row=0, column=0)
             self.show_details(next(iter(self.rows)))
@@ -386,6 +451,27 @@ class InventoryBrowser(App[None]):
             message = self.empty_message if empty else ""
             notes = self.report.observations if self.report is not None else []
             self.set_details([message or "No matches. Change the search or press Esc.", *notes])
+
+    def alarm_summary(self, report: Report) -> str:
+        alarms = [row for row in report.rows if isinstance(row, CloudWatchAlarm)]
+        counts = Counter(alarm.state for alarm in alarms)
+        states = (
+            f"{counts['ALARM']} in alarm · {counts['INSUFFICIENT_DATA']} insufficient data"
+            f" · {counts['OK']} OK"
+        )
+        unknown = len(alarms) - sum(counts[state] for state in ALARM_STATES)
+        if unknown:
+            states += f" · {unknown} unknown"
+        disabled = sum(alarm.actions_enabled is False for alarm in alarms)
+        matches = f"{len(self.rows)} of {len(alarms)} alarms · Actions disabled: {disabled}"
+        if not report.complete:
+            matches = (
+                f"Partial · {len(self.rows)} of {len(alarms)} retrieved"
+                f" · Actions disabled: {disabled}"
+            )
+        elif self.load_view is not None:
+            matches += " · Enter: history"
+        return f"{states}\n{matches}"
 
     @on(Input.Changed, "#search")
     def search_changed(self, event: Input.Changed) -> None:
@@ -412,21 +498,34 @@ class InventoryBrowser(App[None]):
         if isinstance(row, tuple):
             self.set_details(self.amplify_details(*row))
             return
-        lines = [
-            f"{field_label(field.name)}: {field_value(getattr(row, field.name))}"
-            for field in fields(row)
-        ]
-        if isinstance(row, CloudWatchAlarm) and row.name == self.history_alarm:
-            lines.extend(self.history_details())
-        if self.report is not None:
-            lines.extend(self.report.observations)
+        if isinstance(row, CloudWatchAlarm) and self.report is not None:
+            lines = [
+                row.name,
+                f"State: {alarm_status(row.state)[0]} | "
+                f"Actions: {ACTION_LABELS[row.actions_enabled]}",
+                f"Last state update: "
+                f"{alarm_update(row.state_updated_at, self.report.generated_at)}",
+                f"Type: {ALARM_TYPES.get(row.alarm_type, row.alarm_type)} | Region: {row.region}",
+            ]
+            if row.name == self.history_alarm:
+                lines.extend(self.history_details())
+            elif self.load_view is not None:
+                lines.append("Enter: alarm history")
+        else:
+            lines = [
+                f"{field_label(field.name)}: {field_value(getattr(row, field.name))}"
+                for field in fields(row)
+            ]
+            if self.report is not None:
+                lines.extend(self.report.observations)
         self.set_details(lines)
 
     def history_details(self) -> list[str]:
         if self.alarm_history is None:
             return ["", self.empty_message]
         changes = [
-            f"{row.timestamp}  {field_value(row.previous_state)} → {field_value(row.new_state)}"
+            f"{row.timestamp}  {alarm_status(row.previous_state)[0]} → "
+            f"{alarm_status(row.new_state)[0]}"
             for row in self.alarm_history.rows
             if isinstance(row, AlarmStateChange)
         ]
@@ -466,19 +565,16 @@ class InventoryBrowser(App[None]):
         self.query_one(Input).focus()
 
     def action_reset_search(self) -> None:
-        if self.load_view is not None:
-            picker = self.query_one(Select)
-            if picker.expanded:
-                picker.expanded = False
-                picker.focus()
-                return
+        picker = self.query_one(Select)
+        if picker.expanded:
+            picker.expanded = False
+            picker.focus()
+            return
         self.query_one(Input).value = ""
         self.query_one(DataTable).focus()
 
     def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
         if action == "open_views":
-            if self.load_view is None:
-                return False
             return None if self.scanning or self.identity_failed else True
         if action == "refresh_costs":
             if self.load_view is None or self.view is not View.COSTS:
@@ -495,7 +591,8 @@ class InventoryBrowser(App[None]):
         self.start_scan()
 
     def action_reset_demo(self) -> None:
-        self.apps = demo_apps()
+        self.apps = demo_apps() if self.view is View.AMPLIFY else []
+        self.report = demo_alarms() if self.view is View.CLOUDWATCH else None
         self.query_one(Input).value = ""
         self.populate("")
         self.query_one(DataTable).focus()
