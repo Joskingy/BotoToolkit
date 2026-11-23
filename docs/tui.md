@@ -9,8 +9,9 @@ uv sync --locked --extra browse
 uv run --offline --no-sync bototoolkit browse --demo
 ```
 
-The demo uses built-in synthetic apps, branches, and deployment statuses
-without credentials or network access. Press Ctrl+R to reset the sample data.
+The demo includes sample Amplify deployments and CloudWatch alarms. Press
+**F2** to switch between them or **Ctrl+R** to reset the current demo view.
+The demo uses synthetic data and runs without credentials or network access.
 
 ## Live reports
 
@@ -32,15 +33,19 @@ Cost Explorer waits for F5. Search filters the displayed rows locally.
   incomplete snapshot check shows `unknown`.
 - **EC2 inventory** shows instance state and health. Details include owner,
   environment, and attached volume IDs.
-- **CloudWatch alarms** are ordered by state. Press Enter on an alarm to load up
-  to 20 recent state updates in its details.
+- **CloudWatch alarms** shows counts by state and the number with actions
+  disabled. The counts describe the retrieved scan. Search changes only the
+  number of displayed alarms. A partial scan labels the counts as incomplete.
+  Alarms in ALARM appear first. Select a row to see its type, action setting,
+  and last state update in UTC with its age at scan time. In live mode, press
+  **Enter** on an alarm to load up to 20 recent state updates.
 - **Recent CloudTrail changes** shows up to 100 management write events from
   the past 24 hours. Search by resource ID, event, or actor.
 - **Resource Explorer** lists indexed resources, with a separate counts view
   by service and region. Enable both by appending `--view-arn VIEW_ARN` to the
   command. Use an existing view in the verified account and selected region.
   Coverage depends on the view and its index.
-- **Cost Explorer** (v0.3.0 preview) shows unblended costs by service for
+- **Cost Explorer** shows unblended costs by service for
   the last 30 completed UTC days across all billing regions of the verified
   account. Dates, currency, and AWS estimate flags are shown. Credits and
   refunds are excluded, and billing data can lag. Enable Cost Explorer and
