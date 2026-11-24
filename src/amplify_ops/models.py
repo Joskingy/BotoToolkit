@@ -154,6 +154,9 @@ type ReportRow = (
     | CloudWatchAlarm
     | CloudFormationStack
     | CloudFormationResource
+    | DynamoDbTable
+    | AppSyncApi
+    | AppSyncTableSource
     | AlarmStateChange
     | CloudTrailChange
     | DiscoveredResource
@@ -211,6 +214,34 @@ class CloudFormationResource:
     resource_type: str
     physical_id: str | None
     status: str
+    changed_at: str | None = None
+
+
+@dataclass(frozen=True)
+class DynamoDbTable:
+    name: str
+    arn: str | None = None
+    status: str | None = None
+    billing_mode: str | None = None
+    size_bytes: int | None = None
+    item_count: int | None = None
+    deletion_protection: bool | None = None
+    created_at: str | None = None
+
+
+@dataclass(frozen=True)
+class AppSyncApi:
+    name: str
+    api_id: str
+
+
+@dataclass(frozen=True)
+class AppSyncTableSource:
+    name: str
+    table_name: str
+    table_region: str
+    table_arn: str | None
+    delta_sync: bool = False
 
 
 @dataclass(frozen=True)

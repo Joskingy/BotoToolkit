@@ -10,8 +10,8 @@ uv run --offline --no-sync bototoolkit browse --demo
 ```
 
 The demo includes sample Amplify deployments, CloudWatch alarms, and EC2
-instances and CloudFormation stacks. Press **F2** to select a view or
-**Ctrl+R** to reset it.
+instances, CloudFormation stacks, DynamoDB tables, and AppSync data sources.
+Press **F2** to select a view or **Ctrl+R** to reset it.
 The demo uses synthetic data and runs without credentials or network access.
 
 ## Live reports
@@ -60,6 +60,25 @@ Cost Explorer waits for F5. Search filters the displayed rows locally.
   are reused for the session. Reopen a partial listing to try again. Live mode
   requires `cloudformation:ListStacks` and `cloudformation:ListStackResources`.
   These metadata reads do not run drift checks or invoke resource providers.
+- **DynamoDB tables** lists tables in the selected region, including tables
+  created outside CloudFormation. Highlight a table and press **Enter** to
+  see status, billing mode, deletion protection, approximate size, and
+  approximate item count. DynamoDB updates its estimates about every six
+  hours. The managing stack uses an exact table name or ARN match from
+  recorded CloudFormation resources in the same account and region. Open
+  stack resource lists in **CloudFormation stacks** to build that evidence
+  for the session. Browse shows **Stack lookup incomplete** when it lacks
+  coverage and **No stack match found** after checking all listed stacks.
+  Live mode uses `dynamodb:ListTables` and `dynamodb:DescribeTable` for
+  metadata only. Table contents stay in DynamoDB.
+- **AppSync data sources** lists standard GraphQL APIs owned by the verified
+  account in the selected region. Press **Enter** on an API to show the DynamoDB
+  tables and regions configured as its data sources, including delta sync
+  tables. Browse reuses inspected sources in the DynamoDB details and links a
+  table only when the account, region, and table identity match. Sources with
+  unresolved target accounts remain visible in AppSync. These are configured
+  connections. Live mode uses `appsync:ListGraphqlApis` and
+  `appsync:ListDataSources` and does not send GraphQL requests.
 - **Cost Explorer** shows unblended costs by service for
   the last 30 completed UTC days across all billing regions of the verified
   account. Dates, currency, and AWS estimate flags are shown. Credits and

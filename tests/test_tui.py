@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+from dataclasses import replace
 from unittest.mock import Mock
 
 import pytest
@@ -14,6 +15,7 @@ from typer.testing import CliRunner
 
 from amplify_ops.cli import Settings, app, browse
 from amplify_ops.tui import InventoryBrowser, View
+from amplify_ops.tui_demo import demo_stacks, demo_tables
 
 
 @pytest.fixture(scope="module")
@@ -163,6 +165,87 @@ def test_offline_cloudformation_navigates_nested_stacks(tui_runner):
             assert table.row_count == 3
 
     tui_runner.run(journey())
+
+
+@pytest.mark.usefixtures("forbid_aws_session")
+def test_dynamodb_demo_distinguishes_ownership_from_incomplete_coverage(tui_runner):
+    async def journey():
+        browser = InventoryBrowser()
+        async with browser.run_test(size=(60, 20)) as pilot:
+            picker = browser.query_one(Select)
+
+            async def select(view):
+                picker.value = view
+                await pilot.pause()
+
+            await pilot.press("f2", "down", "down", "down", "down", "enter")
+            assert picker.value is View.DYNAMODB
+            await pilot.press("enter")
+            assert "Stack lookup incomplete" in details(browser)
+            assert browser.query_one(Footer).region.bottom <= 20
+
+            await select(View.STACKS)
+            await pilot.press("enter", "enter")
+            assert "Physical ID: demo-orders" in details(browser)
+
+            await select(View.DYNAMODB)
+            await pilot.press("enter")
+            assert "Managing stack (recorded): Demo-data" in details(browser)
+            assert "Status: Active | Billing: On demand" in details(browser)
+            assert "Approx. size: 2.0 MB | Approx. items: 1,800" in details(browser)
+            await pilot.press("down", "enter")
+            assert "Stack lookup incomplete" in details(browser)
+
+            await select(View.STACKS)
+            await pilot.press("down", "down", "enter")
+            assert "Stack: Demo-monitoring" in details(browser)
+            await select(View.DYNAMODB)
+            await pilot.press("down", "enter")
+            assert "No stack match found" in details(browser)
+            assert "Deletion protection: Disabled" in details(browser)
+
+    tui_runner.run(journey())
+
+
+@pytest.mark.usefixtures("forbid_aws_session")
+def test_appsync_demo_shows_configured_consumers_in_dynamodb(tui_runner):
+    async def journey():
+        browser = InventoryBrowser()
+        async with browser.run_test(size=(60, 20)) as pilot:
+            picker = browser.query_one(Select)
+            await pilot.press("f2", "down", "down", "down", "down", "down", "enter")
+            assert picker.value is View.APPSYNC
+            await pilot.press("enter")
+            assert "Orders → demo-orders · us-east-1" in details(browser)
+            assert "SharedSessions → demo-sessions · us-west-2" in details(browser)
+            assert "Target account unverified" in details(browser)
+            assert browser.query_one(Footer).region.bottom <= 20
+            picker.value = View.DYNAMODB
+            await pilot.pause()
+            await pilot.press("enter")
+            assert "AppSync: Demo storefront API / Orders" in details(browser)
+            await pilot.press("down", "enter")
+            assert "No configured AppSync match found" in details(browser)
+            assert "SharedSessions" not in details(browser)
+
+    tui_runner.run(journey())
+
+
+def test_dynamodb_ignores_stack_evidence_from_another_region_or_older_table():
+    browser = InventoryBrowser()
+    stack_report = demo_stacks(None)
+    stack = next(row for row in stack_report.rows if row.name == "Demo-data")
+    table_report = demo_tables("demo-orders")
+    (table,) = table_report.rows
+    resources = demo_stacks(stack.stack_id)
+    browser.stack_reports = {
+        None: stack_report,
+        stack.stack_id: replace(resources, regions=["us-west-2"]),
+    }
+    assert browser.managing_stack(table, table_report) == "Stack lookup incomplete"
+    browser.stack_reports[stack.stack_id] = resources
+    recreated = replace(table, created_at="2026-01-15T09:00:00Z")
+    assert browser.managing_stack(recreated, table_report) == "Stack lookup incomplete"
 
 
 @pytest.mark.usefixtures("forbid_aws_session")
@@ -781,5 +864,213 @@ def test_live_cloudformation_drilldown_checks_identity_and_preserves_partial_row
         "cloudformation",
         "sts",
         "cloudformation",
+        "sts",
+    ]
+
+
+def test_live_dynamodb_reads_only_requested_metadata_and_caches_it(
+    tui_runner, harness, service_stub, monkeypatch
+):
+    factory, session, stubs = harness
+    dynamodb = service_stub("dynamodb")
+    stubs["amplify", REGION].add_response("list_apps", {"apps": []}, {})
+    identity_response(stubs)
+    identity_response(stubs)
+    identity_response(stubs, "000000000000")
+    dynamodb.add_response(
+        "list_tables",
+        {"TableNames": ["example-orders"], "LastEvaluatedTableName": "example-orders"},
+        {},
+    )
+    dynamodb.add_response(
+        "list_tables",
+        {"TableNames": ["example-sessions"]},
+        {"ExclusiveStartTableName": "example-orders"},
+    )
+    dynamodb.add_response(
+        "describe_table",
+        {
+            "Table": {
+                "TableName": "example-orders",
+                "TableArn": f"arn:aws:dynamodb:{REGION}:{ACCOUNT}:table/example-orders",
+                "TableStatus": "ACTIVE",
+                "CreationDateTime": NOW,
+                "KeySchema": [{"AttributeName": "private-key-schema", "KeyType": "HASH"}],
+                "ProvisionedThroughput": {"ReadCapacityUnits": 1, "WriteCapacityUnits": 1},
+                "ItemCount": 0,
+                "TableSizeBytes": 0,
+                "DeletionProtectionEnabled": False,
+            },
+        },
+        {"TableName": "example-orders"},
+    )
+
+    async def journey(browser):
+        async with browser.run_test(size=(80, 25)) as pilot:
+
+            async def finish():
+                await browser.workers.wait_for_complete()
+                await pilot.pause()
+
+            await finish()
+            browser.query_one(Select).value = View.DYNAMODB
+            await pilot.pause()
+            await finish()
+            table = browser.query_one(DataTable)
+            assert table.row_count == 2
+            assert "Press Enter to load table metadata" in details(browser)
+            await pilot.press("enter")
+            await finish()
+            assert table.row_count == 2
+            assert "Status: Active | Billing: Provisioned" in details(browser)
+            assert "Approx. size: 0 bytes | Approx. items: 0" in details(browser)
+            assert "Deletion protection: Disabled" in details(browser)
+            assert "private-key-schema" not in details(browser)
+            assert "Stack lookup incomplete" in details(browser)
+
+            calls = session.client.call_count
+            await pilot.press("enter", "slash", *"orders", "enter")
+            assert table.row_count == 1
+            assert "Status: Active | Billing: Provisioned" in details(browser)
+            assert session.client.call_count == calls
+
+            await pilot.press("escape", "down", "enter")
+            await finish()
+            assert "Account mismatch" in details(browser)
+            assert table.row_count == 0
+            await pilot.press("ctrl+q")
+
+    monkeypatch.setattr("amplify_ops.cli.sys.stdin.isatty", lambda: True)
+    monkeypatch.setattr("amplify_ops.cli.sys.stdout.isatty", lambda: True)
+    monkeypatch.setattr(InventoryBrowser, "run", lambda browser: tui_runner.run(journey(browser)))
+    ctx = typer.Context(
+        typer.main.get_command(app), obj=Settings("test-operator", ACCOUNT, [REGION])
+    )
+    with pytest.raises(typer.Exit) as error:
+        browse(ctx, live=True)
+    assert error.value.exit_code == 1
+    factory.assert_called_once_with(profile_name="test-operator", region_name=REGION)
+    assert [call.args[0] for call in session.client.call_args_list] == [
+        "sts",
+        "amplify",
+        "sts",
+        "dynamodb",
+        "sts",
+        "dynamodb",
+        "sts",
+    ]
+
+
+def test_live_appsync_reads_sources_on_demand_and_preserves_partial_results(
+    tui_runner, harness, service_stub, monkeypatch
+):
+    _, session, stubs = harness
+    appsync = service_stub("appsync")
+    stubs["amplify", REGION].add_response("list_apps", {"apps": []}, {})
+    identity_response(stubs)
+    identity_response(stubs)
+    identity_response(stubs, "000000000000")
+    api_id = "exampleapi"
+    appsync.add_response(
+        "list_graphql_apis",
+        {
+            "graphqlApis": [
+                {
+                    "apiId": api_id,
+                    "name": "Example storefront",
+                    "arn": f"arn:aws:appsync:{REGION}:{ACCOUNT}:apis/{api_id}",
+                }
+            ],
+        },
+        {"apiType": "GRAPHQL", "owner": "CURRENT_ACCOUNT"},
+    )
+    appsync.add_response(
+        "list_data_sources",
+        {
+            "dataSources": [
+                {
+                    "name": "Orders",
+                    "type": "AMAZON_DYNAMODB",
+                    "description": "private-source-description",
+                    "serviceRoleArn": f"arn:aws:iam::{ACCOUNT}:role/TestSources",
+                    "dynamodbConfig": {
+                        "awsRegion": REGION,
+                        "tableName": "example-orders",
+                        "deltaSyncConfig": {"deltaSyncTableName": "example-delta"},
+                    },
+                },
+                {
+                    "name": "CallerSessions",
+                    "type": "AMAZON_DYNAMODB",
+                    "serviceRoleArn": f"arn:aws:iam::{ACCOUNT}:role/TestSources",
+                    "dynamodbConfig": {
+                        "awsRegion": REGION,
+                        "tableName": "example-sessions",
+                        "useCallerCredentials": True,
+                    },
+                },
+                {"name": "UnrelatedFunction", "type": "AWS_LAMBDA"},
+            ],
+            "nextToken": "more-sources",
+        },
+        {"apiId": api_id},
+    )
+    appsync.add_client_error(
+        "list_data_sources",
+        "UnauthorizedException",
+        "private-source-error",
+        expected_params={"apiId": api_id, "nextToken": "more-sources"},
+    )
+
+    async def journey(browser):
+        async with browser.run_test(size=(80, 25)) as pilot:
+
+            async def finish():
+                await browser.workers.wait_for_complete()
+                await pilot.pause()
+
+            await finish()
+            browser.query_one(Select).value = View.APPSYNC
+            await pilot.pause()
+            await finish()
+            assert "Press Enter to load DynamoDB data sources" in details(browser)
+            assert session.client.call_count == 4
+            await pilot.press("enter")
+            await finish()
+            visible = details(browser)
+            assert "Partial" in visible
+            assert f"Orders → example-orders · {REGION}" in visible
+            assert "Orders (delta sync) → example-delta" in visible
+            assert (
+                f"CallerSessions → example-sessions · {REGION}\n  Target account unverified"
+                in visible
+            )
+            assert visible.count("Target account unverified") == 1
+            assert "private-" not in visible
+            assert "UnrelatedFunction" not in visible
+            assert browser.scan_exit_code == 3
+
+            await pilot.press("enter")
+            await finish()
+            assert "Account mismatch" in details(browser)
+            assert browser.query_one(DataTable).row_count == 0
+            await pilot.press("ctrl+q")
+
+    monkeypatch.setattr("amplify_ops.cli.sys.stdin.isatty", lambda: True)
+    monkeypatch.setattr("amplify_ops.cli.sys.stdout.isatty", lambda: True)
+    monkeypatch.setattr(InventoryBrowser, "run", lambda browser: tui_runner.run(journey(browser)))
+    ctx = typer.Context(
+        typer.main.get_command(app), obj=Settings("test-operator", ACCOUNT, [REGION])
+    )
+    with pytest.raises(typer.Exit) as error:
+        browse(ctx, live=True)
+    assert error.value.exit_code == 1
+    assert [call.args[0] for call in session.client.call_args_list] == [
+        "sts",
+        "amplify",
+        "sts",
+        "appsync",
+        "sts",
+        "appsync",
         "sts",
     ]

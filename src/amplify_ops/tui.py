@@ -7,6 +7,7 @@ from dataclasses import fields
 from datetime import UTC, datetime
 from enum import StrEnum
 
+from rich.filesize import decimal
 from rich.text import Text
 from textual import on, work
 from textual.app import App, ComposeResult
@@ -18,10 +19,13 @@ from textual.worker import Worker, WorkerState, get_current_worker
 from amplify_ops.aws import AuthenticationFailure
 from amplify_ops.models import (
     AlarmStateChange,
+    AppSyncApi,
+    AppSyncTableSource,
     Branch,
     CloudFormationResource,
     CloudFormationStack,
     CloudWatchAlarm,
+    DynamoDbTable,
     EbsCandidate,
     Ec2Instance,
     Inventory,
@@ -29,7 +33,14 @@ from amplify_ops.models import (
     ReportRow,
 )
 from amplify_ops.models import App as ReportApp
-from amplify_ops.tui_demo import demo_alarms, demo_apps, demo_instances, demo_stacks
+from amplify_ops.tui_demo import (
+    demo_alarms,
+    demo_apps,
+    demo_appsync,
+    demo_instances,
+    demo_stacks,
+    demo_tables,
+)
 
 
 def plain(value: str) -> str:
@@ -57,9 +68,13 @@ class View(StrEnum):
     RESOURCE_COUNTS = "Resource Explorer counts"
     COSTS = "Cost Explorer"
     STACKS = "CloudFormation stacks"
+    DYNAMODB = "DynamoDB tables"
+    APPSYNC = "AppSync data sources"
 
 
 REPORT_COLUMNS = {
+    View.DYNAMODB: ("name",),
+    View.APPSYNC: ("name", "api_id"),
     View.EBS: ("volume_id", "size_gib", "volume_type", "owner", "snapshot_check"),
     View.CLOUDTRAIL: ("timestamp", "event_name", "username", "event_source"),
     View.RESOURCES: ("service", "resource_type", "region", "arn"),
@@ -82,6 +97,16 @@ EC2_CHECK_STATES = {
     "not-applicable": "Not applicable",
 }
 EC2_HEALTH_STYLES = {"impaired": "bold red", "passed": "green", "stopped": "", "unknown": "yellow"}
+BILLING_MODES = {"PAY_PER_REQUEST": "On demand", "PROVISIONED": "Provisioned"}
+TABLE_RESOURCE_TYPES = {"AWS::DynamoDB::Table", "AWS::DynamoDB::GlobalTable"}
+TABLE_MEMBERSHIP_STATES = {
+    "CREATE_COMPLETE",
+    "UPDATE_COMPLETE",
+    "IMPORT_COMPLETE",
+    "UPDATE_ROLLBACK_COMPLETE",
+}
+DETAIL_VIEWS = (View.DYNAMODB, View.APPSYNC)
+COMPACT_STATUS_VIEWS = (View.CLOUDWATCH, View.EC2, View.STACKS, *DETAIL_VIEWS)
 RESOURCE_VIEWS = (View.RESOURCES, View.RESOURCE_COUNTS)
 LIMIT_REASONS = {
     "PageLimit": "request limit reached",
@@ -218,6 +243,9 @@ class InventoryBrowser(App[None]):
         self.cached_costs: Report | None = None
         self.stack_path: list[str] = []
         self.stack_reports: dict[str | None, Report] = {}
+        self.pending_detail: str | None = None
+        self.detail_reports: dict[tuple[View, str], Report] = {}
+        self.appsync_apis: Report | None = None
         self.history_alarm: str | None = None
         self.alarm_history: Report | None = None
         self.highlighted: str | None = None
@@ -236,7 +264,7 @@ class InventoryBrowser(App[None]):
         )
         yield Static(banner, id="banner", markup=False)
         views = (
-            (View.AMPLIFY, View.CLOUDWATCH, View.EC2, View.STACKS)
+            (View.AMPLIFY, View.CLOUDWATCH, View.EC2, View.STACKS, *DETAIL_VIEWS)
             if self.load_view is None
             else tuple(
                 view for view in View if self.resource_explorer or view not in RESOURCE_VIEWS
@@ -280,6 +308,11 @@ class InventoryBrowser(App[None]):
             table.add_columns("App", "Branch", "Region", "Deployment")
         elif self.view is View.CLOUDWATCH:
             table.add_columns("State", "Alarm", "Actions")
+        elif self.view is View.DYNAMODB:
+            table.add_column("Table name", width=48)
+        elif self.view is View.APPSYNC:
+            table.add_column("GraphQL API", width=24)
+            table.add_column("API ID", width=27)
         elif self.view is View.EC2:
             table.add_column("Health", width=17)
             table.add_column("Instance", width=19)
@@ -331,6 +364,8 @@ class InventoryBrowser(App[None]):
         elif self.view is View.STACKS:
             self.show_stack_level()
         else:
+            if self.view in DETAIL_VIEWS:
+                self.query_one(DataTable).focus()
             self.start_scan()
 
     def start_scan(self, selection: str | None = None) -> None:
@@ -341,17 +376,20 @@ class InventoryBrowser(App[None]):
         self.scanning = True
         self.scan_exit_code = 3
         self.history_alarm = selection if self.view is View.CLOUDWATCH else None
+        self.pending_detail = selection if self.view in DETAIL_VIEWS else None
         self.alarm_history = None
         self.query_one(Select).disabled = True
         self.refresh_bindings()
         label = self.view.value
         if self.history_alarm is not None:
             label = "alarm history"
+        elif self.pending_detail is not None:
+            label = "table metadata" if self.view is View.DYNAMODB else "data sources"
         elif self.view is View.STACKS and selection is not None:
             label = "stack resources"
         self.empty_message = f"Loading {label}…"
         self.query_one("#banner", Static).update(f"LIVE | Read-only | {self.empty_message}")
-        if self.history_alarm is None:
+        if self.history_alarm is None and self.pending_detail is None:
             self.populate("")
         elif self.highlighted is not None:
             self.show_details(self.highlighted)
@@ -374,11 +412,16 @@ class InventoryBrowser(App[None]):
         if event.state is not WorkerState.SUCCESS:
             return
         result = event.worker.result
+        detail_id, self.pending_detail = self.pending_detail, None
         self.scanning = False
         self.identity_failed = isinstance(result, AuthenticationFailure)
         if self.identity_failed:
             self.cached_costs = None
             self.stack_reports.clear()
+            self.detail_reports.clear()
+            self.appsync_apis = None
+            if self.view in DETAIL_VIEWS:
+                self.report = None
         self.query_one(Select).disabled = self.identity_failed
         self.refresh_bindings()
         if isinstance(result, (str, AuthenticationFailure)):
@@ -391,45 +434,54 @@ class InventoryBrowser(App[None]):
         elif isinstance(result, Report):
             if self.history_alarm is not None:
                 self.alarm_history = result
-                self.show_status(self.report or result, history=result)
+                self.show_status(self.report or result, detail=result)
+            elif detail_id is not None:
+                self.detail_reports[self.view, detail_id] = result
+                self.show_status(self.report or result, detail=result)
             else:
                 self.report = result
                 if self.view is View.COSTS:
                     self.cached_costs = result
+                if self.view is View.APPSYNC:
+                    self.appsync_apis = result
                 if self.view is View.STACKS and result.complete:
                     self.stack_reports[self.current_stack_id()] = result
                 self.show_status(result)
-        if self.history_alarm is not None and self.highlighted is not None:
+        if (
+            (self.history_alarm is not None or detail_id is not None)
+            and self.highlighted is not None
+            and not (detail_id is not None and self.identity_failed)
+        ):
             self.show_details(self.highlighted)
         else:
             self.populate(self.query_one(Input).value)
 
     def show_status(
-        self, report: Inventory | Report, *, history: Report | None = None, cached: bool = False
+        self, report: Inventory | Report, *, detail: Report | None = None, cached: bool = False
     ) -> None:
-        complete = report.complete and (history is None or history.complete)
+        complete = report.complete and (detail is None or detail.complete)
         status = "Complete"
         self.scan_exit_code = 0 if complete else 3
         self.empty_message = "No matching resources in this scan."
         if self.view is View.COSTS:
             self.empty_message = "No service costs were returned for this period."
         if not complete:
-            errors = [*report.errors, *(history.errors if history is not None else [])]
+            errors = [*report.errors, *(detail.errors if detail is not None else [])]
             limit = next((error for error in errors if error.category == "limit"), None)
             reason = LIMIT_REASONS.get(limit.code) if limit else None
             unread = (
                 "data unread"
-                if self.view in (View.CLOUDWATCH, View.EC2, View.STACKS)
+                if self.view in COMPACT_STATUS_VIEWS
                 else "some AWS data could not be read"
             )
             status = f"PARTIAL ({reason or unread})"
             self.empty_message = "No rows collected. The scan is incomplete."
-        label = f"{self.view.value} history" if history is not None else self.view.value
+        label = self.view.value
         scope = "All billing regions" if self.view is View.COSTS else report.regions[0]
         banner = self.query_one("#banner", Static)
-        if self.view in (View.CLOUDWATCH, View.EC2, View.STACKS):
+        if self.view in COMPACT_STATUS_VIEWS:
             identity = f"LIVE | Read-only | Account {report.identity.account_id} | {scope}"
-            started = datetime.fromisoformat((history or report).generated_at).astimezone(UTC)
+            started = datetime.fromisoformat((detail or report).generated_at).astimezone(UTC)
             run = f"{status} | {started:%Y-%m-%d %H:%M:%SZ}"
             banner.update(plain(identity) + "\n" + ("Cached | " if cached else "") + plain(run))
             return
@@ -437,7 +489,7 @@ class InventoryBrowser(App[None]):
         banner.update(
             plain(
                 f"LIVE | Read-only | {label} | Account {report.identity.account_id} | "
-                f"{scope} | {status} | {source}Started {(history or report).generated_at}"
+                f"{scope} | {status} | {source}Started {(detail or report).generated_at}"
             )
         )
 
@@ -546,6 +598,13 @@ class InventoryBrowser(App[None]):
                 summary += "\nBackspace: previous list"
             elif self.rows:
                 summary += "\nEnter: view stack resources"
+        elif self.view in DETAIL_VIEWS and self.report is not None:
+            partial = "Partial · " if not self.report.complete else ""
+            kind = "tables" if self.view is View.DYNAMODB else "GraphQL APIs"
+            summary = f"{partial}{len(self.rows)} of {len(self.report.rows)} {kind} shown"
+            if self.rows:
+                action = "table metadata" if self.view is View.DYNAMODB else "DynamoDB data sources"
+                summary += f"\nEnter: view {action}"
         else:
             sample = " | Sample: 2026-01-15" if self.load_view is None else ""
             summary = f"{len(self.rows)} matching rows{sample} | Tab: change panel"
@@ -612,6 +671,16 @@ class InventoryBrowser(App[None]):
         row = self.rows.get(event.row_key.value)
         if isinstance(row, CloudWatchAlarm):
             self.start_scan(row.name)
+        elif isinstance(row, DynamoDbTable | AppSyncApi):
+            selection = row.name if isinstance(row, DynamoDbTable) else row.api_id
+            if self.load_view is None:
+                demo = demo_tables if isinstance(row, DynamoDbTable) else demo_appsync
+                self.detail_reports[self.view, selection] = demo(selection)
+            report = self.detail_reports.get((self.view, selection))
+            if report is None or not report.complete:
+                self.start_scan(selection)
+            elif event.row_key.value is not None:
+                self.show_details(event.row_key.value)
         elif isinstance(row, CloudFormationStack | CloudFormationResource):
             stack_id = stack_to_open(row)
             if stack_id is not None and stack_id not in self.stack_path:
@@ -655,6 +724,10 @@ class InventoryBrowser(App[None]):
             nested_id = stack_to_open(row)
             if nested_id is not None and nested_id not in self.stack_path:
                 lines.insert(1, "Enter: open nested stack")
+        elif isinstance(row, DynamoDbTable):
+            lines = self.table_details(row)
+        elif isinstance(row, AppSyncApi):
+            lines = self.appsync_details(row)
         elif isinstance(row, Ec2Instance):
             system = EC2_CHECK_STATES.get(row.system_status or "", "Unknown")
             instance = EC2_CHECK_STATES.get(row.instance_status or "", "Unknown")
@@ -680,6 +753,130 @@ class InventoryBrowser(App[None]):
             if self.report is not None:
                 lines.extend(self.report.observations)
         self.set_details(lines)
+
+    def table_details(self, row: DynamoDbTable) -> list[str]:
+        if self.pending_detail == row.name:
+            return [row.name, "Loading table metadata…"]
+        report = self.detail_reports.get((View.DYNAMODB, row.name))
+        if report is None:
+            return [row.name, "Press Enter to load table metadata."]
+        table = next((item for item in report.rows if isinstance(item, DynamoDbTable)), None)
+        if table is None:
+            return [row.name, "Table metadata unavailable. Press Enter to retry."]
+        size = decimal(table.size_bytes) if table.size_bytes is not None else "Unknown"
+        items = f"{table.item_count:,}" if table.item_count is not None else "Unknown"
+        billing = BILLING_MODES.get(table.billing_mode or "", "Unknown")
+        status = stack_status(table.status) if table.status else "Unknown"
+        return [
+            table.name,
+            self.managing_stack(table, report),
+            f"Status: {status} | Billing: {billing}",
+            *self.configured_consumers(table, report),
+            f"Deletion protection: {ACTION_LABELS[table.deletion_protection]}",
+            f"Approx. size: {size} | Approx. items: {items}",
+            f"Table ARN: {field_value(table.arn)}",
+        ]
+
+    def appsync_details(self, api: AppSyncApi) -> list[str]:
+        if self.pending_detail == api.api_id:
+            return [api.name, "Loading data sources…"]
+        report = self.detail_reports.get((View.APPSYNC, api.api_id))
+        if report is None:
+            return [api.name, "Press Enter to load DynamoDB data sources."]
+        lines = [api.name, "Configured DynamoDB targets"]
+        if not report.complete:
+            lines.append("Partial · Press Enter to retry")
+        if not report.rows:
+            lines.append("No DynamoDB targets retrieved.")
+        for row in report.rows:
+            if isinstance(row, AppSyncTableSource):
+                name = f"{row.name} (delta sync)" if row.delta_sync else row.name
+                lines.append(f"{name} → {row.table_name} · {row.table_region}")
+                if row.table_arn is None:
+                    lines.append("  Target account unverified")
+        return lines
+
+    def configured_consumers(self, table: DynamoDbTable, report: Report) -> list[str]:
+        apis = self.appsync_apis
+        scope = (report.identity.account_id, report.regions)
+        if table.arn is None or apis is None or (apis.identity.account_id, apis.regions) != scope:
+            return ["AppSync lookup incomplete · Open AppSync data sources"]
+        matches = []
+        complete = apis.complete
+        for api in apis.rows:
+            if not isinstance(api, AppSyncApi):
+                continue
+            sources = self.detail_reports.get((View.APPSYNC, api.api_id))
+            if sources is None or (sources.identity.account_id, sources.regions) != scope:
+                complete = False
+                continue
+            complete = complete and sources.complete
+            for row in sources.rows:
+                if not isinstance(row, AppSyncTableSource):
+                    continue
+                if row.table_arn == table.arn:
+                    suffix = " (delta sync)" if row.delta_sync else ""
+                    matches.append(f"Configured AppSync: {api.name} / {row.name}{suffix}")
+                elif (
+                    row.table_arn is None
+                    and row.table_name == table.name
+                    and row.table_region in report.regions
+                ):
+                    complete = False
+        if matches:
+            return matches
+        return ["No configured AppSync match found" if complete else "AppSync lookup incomplete"]
+
+    def managing_stack(self, table: DynamoDbTable, report: Report) -> str:
+        stacks = self.stack_reports.get(None)
+        if (
+            not table.arn
+            or not table.created_at
+            or stacks is None
+            or stacks.identity.account_id != report.identity.account_id
+            or stacks.regions != report.regions
+        ):
+            return "Stack lookup incomplete"
+
+        complete = stacks.complete
+        matches: list[str] = []
+        created_at = datetime.fromisoformat(table.created_at)
+        for stack in stacks.rows:
+            if not isinstance(stack, CloudFormationStack):
+                continue
+            resources = self.stack_reports.get(stack.stack_id) if stack.stack_id else None
+            if (
+                resources is None
+                or resources.identity.account_id != report.identity.account_id
+                or resources.regions != report.regions
+            ):
+                complete = False
+                continue
+            complete = complete and resources.complete
+            for resource in resources.rows:
+                if (
+                    not isinstance(resource, CloudFormationResource)
+                    or resource.resource_type not in TABLE_RESOURCE_TYPES
+                    or resource.physical_id not in (table.name, table.arn)
+                    or resource.status in ("DELETE_COMPLETE", "DELETE_SKIPPED")
+                ):
+                    continue
+                if (
+                    stack.status.startswith("DELETE_")
+                    or resource.status not in TABLE_MEMBERSHIP_STATES
+                    or not resource.changed_at
+                    or datetime.fromisoformat(resource.changed_at) < created_at
+                ):
+                    complete = False
+                    continue
+                matches.append(stack.name)
+                break
+
+        if len(matches) == 1:
+            return f"Managing stack (recorded): {matches[0]}"
+        if matches:
+            return "Stack match ambiguous"
+        return "No stack match found" if complete else "Stack lookup incomplete"
 
     def history_details(self) -> list[str]:
         if self.alarm_history is None:
@@ -745,6 +942,7 @@ class InventoryBrowser(App[None]):
         self.refresh_bindings()
         if self.load_view is None:
             self.report = demo_stacks(stack_id)
+            self.stack_reports[stack_id] = self.report
             self.populate("")
             return
         self.report = self.stack_reports.get(stack_id)
@@ -789,6 +987,15 @@ class InventoryBrowser(App[None]):
             self.report = demo_alarms()
         elif self.view is View.EC2:
             self.report = demo_instances()
+        elif self.view is View.DYNAMODB:
+            self.report = demo_tables(None)
+            self.detail_reports = {
+                key: report
+                for key, report in self.detail_reports.items()
+                if key[0] is not View.DYNAMODB
+            }
+        elif self.view is View.APPSYNC:
+            self.report = self.appsync_apis = demo_appsync(None)
         else:
             self.report = None
         self.query_one(Input).value = ""

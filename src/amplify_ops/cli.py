@@ -14,7 +14,7 @@ from typing import Annotated
 import typer
 from rich.console import Console
 
-from amplify_ops.appsync import key_expirations
+from amplify_ops.appsync import collect_appsync_tables, key_expirations
 from amplify_ops.aws import AuthenticationFailure, AwsAccess, InventoryBudget, ResourceFailure
 from amplify_ops.comparison import compare_configuration
 from amplify_ops.costs import cost_report
@@ -24,6 +24,7 @@ from amplify_ops.inventory import (
     collect_cloudformation,
     collect_cloudtrail_changes,
     collect_cloudwatch_alarms,
+    collect_dynamodb_tables,
     collect_ebs_candidates,
     collect_ec2_inventory,
     collect_inventory,
@@ -174,6 +175,10 @@ def browse(
                 return collect_cloudwatch_alarms(
                     access, settings.regions, None, selection, budget=budget
                 )
+            case View.APPSYNC:
+                return collect_appsync_tables(access, region, selection, budget=budget)
+            case View.DYNAMODB:
+                return collect_dynamodb_tables(access, region, selection, budget=budget)
             case View.STACKS:
                 return collect_cloudformation(access, region, selection, budget=budget)
             case View.CLOUDTRAIL:

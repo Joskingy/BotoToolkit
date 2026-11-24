@@ -27,6 +27,7 @@ from amplify_ops.models import (
     CloudWatchAlarm,
     Deployment,
     DiscoveredResource,
+    DynamoDbTable,
     EbsCandidate,
     Ec2Instance,
     Inventory,
@@ -259,10 +260,60 @@ def collect_cloudformation(
                                     resource_type, item.get("PhysicalResourceId"), region, account
                                 ),
                                 item["ResourceStatus"],
+                                timestamp(item["LastUpdatedTimestamp"]),
                             )
                         )
     except (InventoryLimitReached, ResourceFailure) as error:
         report.add_error(error.error)
+    return report
+
+
+def collect_dynamodb_tables(
+    access: AwsAccess, region: str, name: str | None, *, budget: InventoryBudget
+) -> Report:
+    report = Report(
+        access.identity,
+        "dynamodb_table" if name else "dynamodb_tables",
+        timestamp(datetime.now(UTC)),
+        [region],
+    )
+    try:
+        with closing(access.service("dynamodb", region, budget=budget)) as reader:
+            if name is None:
+                for page in reader.pages("list_tables"):
+                    report.rows.extend(DynamoDbTable(name) for name in page.get("TableNames", []))
+                return report
+            table = reader.call("describe_table", TableName=name).get("Table", {})
+    except (InventoryLimitReached, ResourceFailure) as error:
+        report.add_error(error.error)
+        return report
+
+    partition = access.identity.caller_arn.split(":", 2)[1]
+    expected_arn = f"arn:{partition}:dynamodb:{region}:{access.identity.account_id}:table/{name}"
+    arn = table.get("TableArn")
+    if table.get("TableName") != name or (arn is not None and arn != expected_arn):
+        report.add_error(ScanError(region, "describe_table", "TableIdentityMismatch", "metadata"))
+        return report
+
+    billing_mode = table.get("BillingModeSummary", {}).get("BillingMode")
+    throughput = table.get("ProvisionedThroughput", {})
+    if billing_mode is None and all(
+        (throughput.get(field) or 0) > 0 for field in ("ReadCapacityUnits", "WriteCapacityUnits")
+    ):
+        billing_mode = "PROVISIONED"
+    created_at = table.get("CreationDateTime")
+    report.rows.append(
+        DynamoDbTable(
+            name=name,
+            arn=arn,
+            status=table.get("TableStatus"),
+            billing_mode=billing_mode,
+            size_bytes=table.get("TableSizeBytes"),
+            item_count=table.get("ItemCount"),
+            deletion_protection=table.get("DeletionProtectionEnabled"),
+            created_at=timestamp(created_at) if created_at is not None else None,
+        )
+    )
     return report
 
 

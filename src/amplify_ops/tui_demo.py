@@ -2,11 +2,14 @@
 
 from amplify_ops.models import (
     App,
+    AppSyncApi,
+    AppSyncTableSource,
     Branch,
     CloudFormationResource,
     CloudFormationStack,
     CloudWatchAlarm,
     Deployment,
+    DynamoDbTable,
     Ec2Instance,
     Identity,
     Report,
@@ -156,7 +159,7 @@ def demo_stacks(stack_id: str | None) -> Report:
     elif stack_id == backend:
         rows = [
             CloudFormationResource(
-                "Orders", "AWS::DynamoDB::Table", "demo-orders", "CREATE_COMPLETE"
+                "Orders", "AWS::DynamoDB::Table", "demo-orders", "CREATE_COMPLETE", created_at
             ),
         ]
     else:
@@ -171,4 +174,62 @@ def demo_stacks(stack_id: str | None) -> Report:
         "2026-01-15T10:30:00Z",
         [region],
         rows=rows,
+    )
+
+
+def demo_tables(name: str | None) -> Report:
+    region = "us-east-1"
+    rows = [
+        DynamoDbTable(
+            "demo-orders",
+            arn=f"arn:aws:dynamodb:{region}:ACCOUNT_ID:table/demo-orders",
+            status="ACTIVE",
+            billing_mode="PAY_PER_REQUEST",
+            size_bytes=2_000_000,
+            item_count=1800,
+            deletion_protection=True,
+            created_at="2026-01-15T07:55:00Z",
+        ),
+        DynamoDbTable(
+            "demo-sessions",
+            arn=f"arn:aws:dynamodb:{region}:ACCOUNT_ID:table/demo-sessions",
+            status="UPDATING",
+            billing_mode="PROVISIONED",
+            size_bytes=0,
+            item_count=0,
+            deletion_protection=False,
+            created_at="2026-01-15T08:10:00Z",
+        ),
+    ]
+    return Report(
+        Identity("DEMO", ""),
+        "dynamodb_table" if name else "dynamodb_tables",
+        "2026-01-15T10:30:00Z",
+        [region],
+        rows=[
+            DynamoDbTable(table.name) if name is None else table
+            for table in rows
+            if name is None or table.name == name
+        ],
+    )
+
+
+def demo_appsync(api_id: str | None) -> Report:
+    region = "us-east-1"
+    return Report(
+        Identity("DEMO", ""),
+        "appsync_table_sources" if api_id else "appsync_apis",
+        "2026-01-15T10:30:00Z",
+        [region],
+        rows=[
+            AppSyncTableSource(
+                "Orders",
+                "demo-orders",
+                region,
+                f"arn:aws:dynamodb:{region}:ACCOUNT_ID:table/demo-orders",
+            ),
+            AppSyncTableSource("SharedSessions", "demo-sessions", "us-west-2", None),
+        ]
+        if api_id
+        else [AppSyncApi("Demo storefront API", "demostorefront")],
     )
