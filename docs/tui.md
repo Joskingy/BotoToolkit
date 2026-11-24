@@ -9,8 +9,8 @@ uv sync --locked --extra browse
 uv run --offline --no-sync bototoolkit browse --demo
 ```
 
-The demo includes sample Amplify deployments and CloudWatch alarms. Press
-**F2** to switch between them or **Ctrl+R** to reset the current demo view.
+The demo includes sample Amplify deployments, CloudWatch alarms, and EC2
+instances. Press **F2** to select a view or **Ctrl+R** to reset it.
 The demo uses synthetic data and runs without credentials or network access.
 
 ## Live reports
@@ -31,8 +31,14 @@ Cost Explorer waits for F5. Search filters the displayed rows locally.
 - **Unattached EBS volumes** are ordered by size. Details show the owner,
   creation time, and latest completed snapshot found by the check. An
   incomplete snapshot check shows `unknown`.
-- **EC2 inventory** shows instance state and health. Details include owner,
-  environment, and attached volume IDs.
+- **EC2 inventory** summarizes instances with impaired or passing checks,
+  stopped instances, and unknown health. Impaired instances appear first,
+  with the failed check and owner visible in the table. A running instance
+  counts as passed when both its system and instance checks passed. Select a
+  row for the full instance name
+  and ID, both check results, environment, and attached volume IDs. A partial
+  scan marks its totals as incomplete. Search filters rows locally and leaves
+  the health counts based on the retrieved scan.
 - **CloudWatch alarms** shows counts by state and the number with actions
   disabled. The counts describe the retrieved scan. Search changes only the
   number of displayed alarms. A partial scan labels the counts as incomplete.

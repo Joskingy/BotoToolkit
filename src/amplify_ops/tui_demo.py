@@ -1,6 +1,14 @@
 """Fixed fictional examples; no configuration, filesystem, SDK, or network access."""
 
-from amplify_ops.models import App, Branch, CloudWatchAlarm, Deployment, Identity, Report
+from amplify_ops.models import (
+    App,
+    Branch,
+    CloudWatchAlarm,
+    Deployment,
+    Ec2Instance,
+    Identity,
+    Report,
+)
 
 
 def demo_apps() -> list[App]:
@@ -84,5 +92,38 @@ def demo_alarms() -> Report:
                 region, "Storefront health", "CompositeAlarm", "OK", True, "2026-01-15T08:30:00Z"
             ),
             CloudWatchAlarm(region, "Batch job heartbeat", "LogAlarm", None, None, None),
+        ],
+    )
+
+
+def demo_instances() -> Report:
+    region = "us-east-1"
+    examples = [
+        ("Demo dashboard", "running", "Platform", "ok", "ok"),
+        ("Demo checkout API", "running", "Platform", "ok", "impaired"),
+        ("Demo worker", "running", "Operations", "impaired", "ok"),
+        ("Demo indexer", "running", "Data", "insufficient-data", "ok"),
+        ("Demo batch runner", "stopped", "Data", None, None),
+    ]
+    return Report(
+        Identity("DEMO", ""),
+        "ec2_inventory",
+        "2026-01-15T10:30:00Z",
+        [region],
+        rows=[
+            Ec2Instance(
+                region=region,
+                instance_id=f"i-{index:017x}",
+                name=name,
+                state=state,
+                instance_type="t3.micro",
+                owner=owner,
+                environment="demo",
+                auto_scaling_group=None,
+                instance_status=instance,
+                system_status=system,
+                volume_ids=[],
+            )
+            for index, (name, state, owner, instance, system) in enumerate(examples, start=1)
         ],
     )

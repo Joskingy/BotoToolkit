@@ -21,12 +21,13 @@ from amplify_ops.models import (
     Branch,
     CloudWatchAlarm,
     EbsCandidate,
+    Ec2Instance,
     Inventory,
     Report,
     ReportRow,
 )
 from amplify_ops.models import App as ReportApp
-from amplify_ops.tui_demo import demo_alarms, demo_apps
+from amplify_ops.tui_demo import demo_alarms, demo_apps, demo_instances
 
 
 def plain(value: str) -> str:
@@ -58,7 +59,6 @@ class View(StrEnum):
 REPORT_COLUMNS = {
     View.EBS: ("volume_id", "size_gib", "volume_type", "owner", "snapshot_check"),
     View.CLOUDTRAIL: ("timestamp", "event_name", "username", "event_source"),
-    View.EC2: ("instance_id", "name", "state", "instance_status", "system_status"),
     View.RESOURCES: ("service", "resource_type", "region", "arn"),
     View.RESOURCE_COUNTS: ("service", "region", "count"),
     View.COSTS: ("service", "account_cost", "currency", "estimated_by_aws"),
@@ -71,6 +71,14 @@ ALARM_STATES = {
 ALARM_ORDER = {state: index for index, state in enumerate(ALARM_STATES)}
 ALARM_TYPES = {"MetricAlarm": "Metric", "CompositeAlarm": "Composite", "LogAlarm": "Log"}
 ACTION_LABELS = {True: "Enabled", False: "Disabled", None: "Unknown"}
+EC2_CHECK_STATES = {
+    "ok": "Passed",
+    "impaired": "Impaired",
+    "initializing": "Initializing",
+    "insufficient-data": "Insufficient data",
+    "not-applicable": "Not applicable",
+}
+EC2_HEALTH_STYLES = {"impaired": "bold red", "passed": "green", "stopped": "", "unknown": "yellow"}
 RESOURCE_VIEWS = (View.RESOURCES, View.RESOURCE_COUNTS)
 LIMIT_REASONS = {
     "PageLimit": "request limit reached",
@@ -101,6 +109,19 @@ def field_value(value: object) -> str:
 
 def alarm_status(state: str | None) -> tuple[str, str]:
     return ALARM_STATES.get(state or "", ("Unknown", ""))
+
+
+def ec2_health(instance: Ec2Instance) -> tuple[str, str]:
+    if instance.state == "stopped":
+        return "stopped", "Stopped"
+    if instance.system_status == "impaired":
+        label = "Both impaired" if instance.instance_status == "impaired" else "System impaired"
+        return "impaired", label
+    if instance.instance_status == "impaired":
+        return "impaired", "Instance impaired"
+    if instance.state == "running" and instance.system_status == instance.instance_status == "ok":
+        return "passed", "Checks passed"
+    return "unknown", "Checks unknown"
 
 
 def alarm_update(value: str | None, scanned_at: str) -> str:
@@ -199,7 +220,7 @@ class InventoryBrowser(App[None]):
         )
         yield Static(banner, id="banner", markup=False)
         views = (
-            (View.AMPLIFY, View.CLOUDWATCH)
+            (View.AMPLIFY, View.CLOUDWATCH, View.EC2)
             if self.load_view is None
             else tuple(
                 view for view in View if self.resource_explorer or view not in RESOURCE_VIEWS
@@ -243,6 +264,10 @@ class InventoryBrowser(App[None]):
             table.add_columns("App", "Branch", "Region", "Deployment")
         elif self.view is View.CLOUDWATCH:
             table.add_columns("State", "Alarm", "Actions")
+        elif self.view is View.EC2:
+            table.add_column("Health", width=17)
+            table.add_column("Instance", width=19)
+            table.add_column("Owner", width=12)
         else:
             table.add_columns(*(field_label(name) for name in REPORT_COLUMNS[self.view]))
 
@@ -358,14 +383,16 @@ class InventoryBrowser(App[None]):
             limit = next((error for error in errors if error.category == "limit"), None)
             reason = LIMIT_REASONS.get(limit.code) if limit else None
             unread = (
-                "data unread" if self.view is View.CLOUDWATCH else "some AWS data could not be read"
+                "data unread"
+                if self.view in (View.CLOUDWATCH, View.EC2)
+                else "some AWS data could not be read"
             )
             status = f"PARTIAL ({reason or unread})"
             self.empty_message = "No rows collected. The scan is incomplete."
         label = f"{self.view.value} history" if history is not None else self.view.value
         scope = "All billing regions" if self.view is View.COSTS else report.regions[0]
         banner = self.query_one("#banner", Static)
-        if self.view is View.CLOUDWATCH:
+        if self.view in (View.CLOUDWATCH, View.EC2):
             identity = f"LIVE | Read-only | Account {report.identity.account_id} | {scope}"
             started = datetime.fromisoformat((history or report).generated_at).astimezone(UTC)
             run = f"{status} | {started:%Y-%m-%d %H:%M:%SZ}"
@@ -409,6 +436,22 @@ class InventoryBrowser(App[None]):
                     state, _ = alarm_status(alarm.state)
                     yield (state, alarm.name, ACTION_LABELS[alarm.actions_enabled]), alarm
                 return
+            elif self.view is View.EC2:
+                instances = sorted(
+                    (row for row in rows if isinstance(row, Ec2Instance)),
+                    key=lambda row: ec2_health(row)[0] != "impaired",
+                )
+                for instance in instances:
+                    _, health = ec2_health(instance)
+                    yield (
+                        (
+                            health,
+                            instance.name or instance.instance_id,
+                            instance.owner or "Unknown",
+                        ),
+                        instance,
+                    )
+                return
             for row in rows:
                 yield (
                     tuple(field_value(getattr(row, name)) for name in REPORT_COLUMNS[self.view]),
@@ -427,7 +470,7 @@ class InventoryBrowser(App[None]):
                 if isinstance(row, tuple)
                 else tuple(field_value(getattr(row, field.name)) for field in fields(row))
             )
-            if isinstance(row, CloudWatchAlarm):
+            if isinstance(row, CloudWatchAlarm | Ec2Instance):
                 searchable = (*values, *searchable)
             if needle not in " ".join(plain(value) for value in searchable).casefold():
                 continue
@@ -436,9 +479,13 @@ class InventoryBrowser(App[None]):
             cells = [Text(plain(value)) for value in values]
             if isinstance(row, CloudWatchAlarm):
                 cells[0].stylize(alarm_status(row.state)[1])
+            elif isinstance(row, Ec2Instance):
+                cells[0].stylize(EC2_HEALTH_STYLES[ec2_health(row)[0]])
             table.add_row(*cells, key=key)
         if self.view is View.CLOUDWATCH and self.report is not None:
             summary = self.alarm_summary(self.report)
+        elif self.view is View.EC2 and self.report is not None:
+            summary = self.ec2_summary(self.report)
         else:
             sample = " | Sample: 2026-01-15" if self.load_view is None else ""
             summary = f"{len(self.rows)} matching rows{sample} | Tab: change panel"
@@ -472,6 +519,15 @@ class InventoryBrowser(App[None]):
         elif self.load_view is not None:
             matches += " · Enter: history"
         return f"{states}\n{matches}"
+
+    def ec2_summary(self, report: Report) -> str:
+        counts = Counter(ec2_health(row)[0] for row in report.rows if isinstance(row, Ec2Instance))
+        states = (
+            f"{counts['impaired']} impaired · {counts['passed']} passed"
+            f" · {counts['stopped']} stopped · {counts['unknown']} unknown"
+        )
+        partial = "Partial · " if not report.complete else ""
+        return f"{states}\n{partial}{counts.total()} instances retrieved · {len(self.rows)} shown"
 
     @on(Input.Changed, "#search")
     def search_changed(self, event: Input.Changed) -> None:
@@ -511,6 +567,23 @@ class InventoryBrowser(App[None]):
                 lines.extend(self.history_details())
             elif self.load_view is not None:
                 lines.append("Enter: alarm history")
+        elif isinstance(row, Ec2Instance):
+            system = EC2_CHECK_STATES.get(row.system_status or "", "Unknown")
+            instance = EC2_CHECK_STATES.get(row.instance_status or "", "Unknown")
+            if row.state == "stopped":
+                system = instance = "Not applicable"
+            lines = [
+                row.name or row.instance_id,
+                f"State: {(row.state or 'Unknown').capitalize()} | Owner: {row.owner or 'Unknown'}",
+                f"System check: {system} | Instance check: {instance}",
+                f"Instance ID: {row.instance_id} | Region: {row.region}",
+                f"Type: {field_value(row.instance_type)} | "
+                f"Environment: {field_value(row.environment)}",
+                f"Auto Scaling group: {field_value(row.auto_scaling_group)}",
+                f"Attached volumes: {field_value(row.volume_ids)}",
+            ]
+            if self.report is not None:
+                lines.extend(self.report.observations)
         else:
             lines = [
                 f"{field_label(field.name)}: {field_value(getattr(row, field.name))}"
@@ -592,7 +665,12 @@ class InventoryBrowser(App[None]):
 
     def action_reset_demo(self) -> None:
         self.apps = demo_apps() if self.view is View.AMPLIFY else []
-        self.report = demo_alarms() if self.view is View.CLOUDWATCH else None
+        if self.view is View.CLOUDWATCH:
+            self.report = demo_alarms()
+        elif self.view is View.EC2:
+            self.report = demo_instances()
+        else:
+            self.report = None
         self.query_one(Input).value = ""
         self.populate("")
         self.query_one(DataTable).focus()

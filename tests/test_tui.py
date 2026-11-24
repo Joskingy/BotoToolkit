@@ -100,6 +100,41 @@ def test_offline_cloudwatch_summary_and_details(tui_runner):
 
 
 @pytest.mark.usefixtures("forbid_aws_session")
+def test_offline_ec2_health_orders_impaired_and_keeps_totals_when_filtered(tui_runner):
+    async def journey():
+        browser = InventoryBrowser()
+        async with browser.run_test(size=(60, 20)) as pilot:
+            table = browser.query_one(DataTable)
+            summary = browser.query_one("#summary", Static)
+            await pilot.press("f2", "down", "down", "enter")
+            await pilot.pause()
+            totals = "2 impaired · 1 passed · 1 stopped · 1 unknown"
+            assert table.row_count == 5
+            assert totals in str(summary.content)
+            assert [cell.plain for cell in table.get_row_at(0)] == [
+                "System impaired",
+                "Demo checkout API",
+                "Platform",
+            ]
+            assert "System check: Impaired | Instance check: Passed" in details(browser)
+            await pilot.press("down")
+            assert table.get_cell_at((1, 0)).plain == "Instance impaired"
+            assert "System check: Passed | Instance check: Impaired" in details(browser)
+            assert browser.query_one(Footer).region.bottom <= 20
+
+            browser.query_one(Input).value = "checks unknown"
+            await pilot.pause()
+            assert table.row_count == 1
+            assert "Instance check: Insufficient data" in details(browser)
+            assert totals in str(summary.content)
+            assert "5 instances retrieved · 1 shown" in str(summary.content)
+            await pilot.press("ctrl+r")
+            assert table.row_count == 5
+
+    tui_runner.run(journey())
+
+
+@pytest.mark.usefixtures("forbid_aws_session")
 def test_partial_empty_and_no_deployments_are_distinct(tui_runner):
     async def journey():
         browser = InventoryBrowser()
@@ -246,6 +281,7 @@ def test_live_views_load_on_selection_and_reverify_before_each_scan(
 
     volume = "vol-00000000000000001"
     instance = "i-00000000000000001"
+    running = "i-00000000000000002"
     ec2 = service_stub("ec2")
     ec2.add_response(
         "describe_volumes",
@@ -255,13 +291,23 @@ def test_live_views_load_on_selection_and_reverify_before_each_scan(
     ec2.add_client_error("describe_snapshots", "UnauthorizedOperation", "private-snapshot-error")
     ec2.add_response(
         "describe_instances",
-        {"Reservations": [{"Instances": [{"InstanceId": instance, "State": {"Name": "stopped"}}]}]},
+        {
+            "Reservations": [
+                {
+                    "Instances": [
+                        {"InstanceId": instance, "State": {"Name": "stopped"}},
+                        {"InstanceId": running, "State": {"Name": "running"}},
+                    ]
+                }
+            ],
+        },
         {},
     )
-    ec2.add_response(
+    ec2.add_client_error(
         "describe_instance_status",
-        {"InstanceStatuses": []},
-        {"InstanceIds": [instance], "IncludeAllInstances": True},
+        "UnauthorizedOperation",
+        "private-ec2-status-error",
+        expected_params={"InstanceIds": [instance, running], "IncludeAllInstances": True},
     )
 
     alarms = service_stub("cloudwatch")
@@ -419,7 +465,24 @@ def test_live_views_load_on_selection_and_reverify_before_each_scan(
             assert "private-snapshot-error" not in details(browser)
 
             await select(View.EC2)
-            assert "stopped" in details(browser) and instance in details(browser)
+            summary = browser.query_one("#summary", Static)
+            assert "Partial · 2 instances retrieved · 2 shown" in str(summary.content)
+            assert "0 impaired · 0 passed · 1 stopped · 1 unknown" in str(summary.content)
+            assert table.get_cell_at((0, 0)).plain == "Stopped"
+            assert table.get_cell_at((0, 1)).plain == instance
+            assert "State: Stopped" in details(browser)
+            assert "System check: Not applicable | Instance check: Not applicable" in details(
+                browser
+            )
+            assert table.get_cell_at((1, 0)).plain == "Checks unknown"
+            calls_before_ec2_search = called_services()
+            browser.query_one(Input).value = running
+            await pilot.pause()
+            assert table.row_count == 1
+            assert "System check: Unknown | Instance check: Unknown" in details(browser)
+            assert "private-ec2-status-error" not in details(browser)
+            await pilot.press("escape", "enter")
+            assert called_services() == calls_before_ec2_search
             await select(View.CLOUDWATCH)
             assert name in details(browser) and "Recent state changes" not in details(browser)
             assert called_services().count("cloudwatch") == 1
