@@ -19,6 +19,8 @@ from amplify_ops.aws import AuthenticationFailure
 from amplify_ops.models import (
     AlarmStateChange,
     Branch,
+    CloudFormationResource,
+    CloudFormationStack,
     CloudWatchAlarm,
     EbsCandidate,
     Ec2Instance,
@@ -27,7 +29,7 @@ from amplify_ops.models import (
     ReportRow,
 )
 from amplify_ops.models import App as ReportApp
-from amplify_ops.tui_demo import demo_alarms, demo_apps, demo_instances
+from amplify_ops.tui_demo import demo_alarms, demo_apps, demo_instances, demo_stacks
 
 
 def plain(value: str) -> str:
@@ -54,6 +56,7 @@ class View(StrEnum):
     RESOURCES = "Resource Explorer"
     RESOURCE_COUNTS = "Resource Explorer counts"
     COSTS = "Cost Explorer"
+    STACKS = "CloudFormation stacks"
 
 
 REPORT_COLUMNS = {
@@ -109,6 +112,16 @@ def field_value(value: object) -> str:
 
 def alarm_status(state: str | None) -> tuple[str, str]:
     return ALARM_STATES.get(state or "", ("Unknown", ""))
+
+
+def stack_status(status: str) -> str:
+    return status.replace("_", " ").capitalize()
+
+
+def stack_to_open(row: CloudFormationStack | CloudFormationResource) -> str | None:
+    if isinstance(row, CloudFormationStack):
+        return row.stack_id
+    return row.physical_id if row.resource_type == "AWS::CloudFormation::Stack" else None
 
 
 def ec2_health(instance: Ec2Instance) -> tuple[str, str]:
@@ -188,6 +201,7 @@ class InventoryBrowser(App[None]):
         Binding("escape", "reset_search", "Clear search", priority=True),
         Binding("ctrl+r", "reset_demo", "Reset", priority=True),
         Binding("f5", "refresh_costs", "Fetch costs (API fee)", priority=True),
+        Binding("backspace", "back_stack", "Back to parent", show=False),
         Binding("ctrl+q", "quit", "Quit", priority=True),
     ]
 
@@ -202,6 +216,8 @@ class InventoryBrowser(App[None]):
         self.apps = demo_apps() if load_view is None else []
         self.report: Report | None = None
         self.cached_costs: Report | None = None
+        self.stack_path: list[str] = []
+        self.stack_reports: dict[str | None, Report] = {}
         self.history_alarm: str | None = None
         self.alarm_history: Report | None = None
         self.highlighted: str | None = None
@@ -220,7 +236,7 @@ class InventoryBrowser(App[None]):
         )
         yield Static(banner, id="banner", markup=False)
         views = (
-            (View.AMPLIFY, View.CLOUDWATCH, View.EC2)
+            (View.AMPLIFY, View.CLOUDWATCH, View.EC2, View.STACKS)
             if self.load_view is None
             else tuple(
                 view for view in View if self.resource_explorer or view not in RESOURCE_VIEWS
@@ -268,6 +284,15 @@ class InventoryBrowser(App[None]):
             table.add_column("Health", width=17)
             table.add_column("Instance", width=19)
             table.add_column("Owner", width=12)
+        elif self.view is View.STACKS:
+            if self.stack_path:
+                table.add_column("Logical ID", width=14)
+                table.add_column("Resource type", width=21)
+                table.add_column("Status", width=15)
+            else:
+                table.add_column("Stack", width=22)
+                table.add_column("Status", width=17)
+                table.add_column("Changed", width=10)
         else:
             table.add_columns(*(field_label(name) for name in REPORT_COLUMNS[self.view]))
 
@@ -281,6 +306,7 @@ class InventoryBrowser(App[None]):
         ):
             return
         self.view = event.value
+        self.stack_path.clear()
         self.apps = []
         self.report = None
         self.set_columns()
@@ -302,36 +328,42 @@ class InventoryBrowser(App[None]):
                 self.show_status(self.report, cached=True)
             self.populate("")
             self.refresh_bindings()
+        elif self.view is View.STACKS:
+            self.show_stack_level()
         else:
             self.start_scan()
 
-    def start_scan(self, alarm_name: str | None = None) -> None:
+    def start_scan(self, selection: str | None = None) -> None:
         if self.load_view is None or self.scanning or self.identity_failed:
             return
         if self.view is View.COSTS:
             self.report = None
         self.scanning = True
         self.scan_exit_code = 3
-        self.history_alarm = alarm_name
+        self.history_alarm = selection if self.view is View.CLOUDWATCH else None
         self.alarm_history = None
         self.query_one(Select).disabled = True
         self.refresh_bindings()
-        label = "alarm history" if alarm_name is not None else self.view.value
+        label = self.view.value
+        if self.history_alarm is not None:
+            label = "alarm history"
+        elif self.view is View.STACKS and selection is not None:
+            label = "stack resources"
         self.empty_message = f"Loading {label}…"
         self.query_one("#banner", Static).update(f"LIVE | Read-only | {self.empty_message}")
-        if alarm_name is None:
+        if self.history_alarm is None:
             self.populate("")
         elif self.highlighted is not None:
             self.show_details(self.highlighted)
-        self.scan(self.load_view, self.view, alarm_name)
+        self.scan(self.load_view, self.view, selection)
 
     @work(thread=True)
     def scan(
-        self, load_view: LoadView, view: View, alarm_name: str | None
+        self, load_view: LoadView, view: View, selection: str | None
     ) -> Inventory | Report | AuthenticationFailure | str:
         worker = get_current_worker()
         try:
-            return load_view(view, alarm_name, lambda: worker.is_cancelled)
+            return load_view(view, selection, lambda: worker.is_cancelled)
         except AuthenticationFailure as error:
             return error
         except Exception:
@@ -346,6 +378,7 @@ class InventoryBrowser(App[None]):
         self.identity_failed = isinstance(result, AuthenticationFailure)
         if self.identity_failed:
             self.cached_costs = None
+            self.stack_reports.clear()
         self.query_one(Select).disabled = self.identity_failed
         self.refresh_bindings()
         if isinstance(result, (str, AuthenticationFailure)):
@@ -363,6 +396,8 @@ class InventoryBrowser(App[None]):
                 self.report = result
                 if self.view is View.COSTS:
                     self.cached_costs = result
+                if self.view is View.STACKS and result.complete:
+                    self.stack_reports[self.current_stack_id()] = result
                 self.show_status(result)
         if self.history_alarm is not None and self.highlighted is not None:
             self.show_details(self.highlighted)
@@ -384,7 +419,7 @@ class InventoryBrowser(App[None]):
             reason = LIMIT_REASONS.get(limit.code) if limit else None
             unread = (
                 "data unread"
-                if self.view in (View.CLOUDWATCH, View.EC2)
+                if self.view in (View.CLOUDWATCH, View.EC2, View.STACKS)
                 else "some AWS data could not be read"
             )
             status = f"PARTIAL ({reason or unread})"
@@ -392,11 +427,11 @@ class InventoryBrowser(App[None]):
         label = f"{self.view.value} history" if history is not None else self.view.value
         scope = "All billing regions" if self.view is View.COSTS else report.regions[0]
         banner = self.query_one("#banner", Static)
-        if self.view in (View.CLOUDWATCH, View.EC2):
+        if self.view in (View.CLOUDWATCH, View.EC2, View.STACKS):
             identity = f"LIVE | Read-only | Account {report.identity.account_id} | {scope}"
             started = datetime.fromisoformat((history or report).generated_at).astimezone(UTC)
             run = f"{status} | {started:%Y-%m-%d %H:%M:%SZ}"
-            banner.update(plain(identity) + "\n" + plain(run))
+            banner.update(plain(identity) + "\n" + ("Cached | " if cached else "") + plain(run))
             return
         source = "Cached | " if cached else ""
         banner.update(
@@ -452,6 +487,21 @@ class InventoryBrowser(App[None]):
                         instance,
                     )
                 return
+            elif self.view is View.STACKS:
+                for row in rows:
+                    if isinstance(row, CloudFormationStack):
+                        name = f"↳ {row.name}" if row.parent_id else row.name
+                        yield (name, stack_status(row.status), row.changed_at[:10]), row
+                    elif isinstance(row, CloudFormationResource):
+                        yield (
+                            (
+                                row.logical_id,
+                                row.resource_type.removeprefix("AWS::"),
+                                stack_status(row.status),
+                            ),
+                            row,
+                        )
+                return
             for row in rows:
                 yield (
                     tuple(field_value(getattr(row, name)) for name in REPORT_COLUMNS[self.view]),
@@ -470,7 +520,9 @@ class InventoryBrowser(App[None]):
                 if isinstance(row, tuple)
                 else tuple(field_value(getattr(row, field.name)) for field in fields(row))
             )
-            if isinstance(row, CloudWatchAlarm | Ec2Instance):
+            if isinstance(
+                row, CloudWatchAlarm | Ec2Instance | CloudFormationStack | CloudFormationResource
+            ):
                 searchable = (*values, *searchable)
             if needle not in " ".join(plain(value) for value in searchable).casefold():
                 continue
@@ -486,6 +538,14 @@ class InventoryBrowser(App[None]):
             summary = self.alarm_summary(self.report)
         elif self.view is View.EC2 and self.report is not None:
             summary = self.ec2_summary(self.report)
+        elif self.view is View.STACKS and self.report is not None:
+            kind = "Recorded resources" if self.stack_path else "Current stacks"
+            partial = "Partial · " if not self.report.complete else ""
+            summary = f"{kind} · {partial}{len(self.rows)} of {len(self.report.rows)} shown"
+            if self.stack_path:
+                summary += "\nBackspace: previous list"
+            elif self.rows:
+                summary += "\nEnter: view stack resources"
         else:
             sample = " | Sample: 2026-01-15" if self.load_view is None else ""
             summary = f"{len(self.rows)} matching rows{sample} | Tab: change panel"
@@ -497,7 +557,10 @@ class InventoryBrowser(App[None]):
             empty = not (self.apps or (self.report is not None and self.report.rows))
             message = self.empty_message if empty else ""
             notes = self.report.observations if self.report is not None else []
-            self.set_details([message or "No matches. Change the search or press Esc.", *notes])
+            lines = [message or "No matches. Change the search or press Esc.", *notes]
+            if self.view is View.STACKS and self.stack_path:
+                lines.insert(0, f"Stack: {self.stack_path[-1].split('/')[1]}")
+            self.set_details(lines)
 
     def alarm_summary(self, report: Report) -> str:
         alarms = [row for row in report.rows if isinstance(row, CloudWatchAlarm)]
@@ -544,9 +607,16 @@ class InventoryBrowser(App[None]):
 
     @on(DataTable.RowSelected, "#resources")
     def row_selected(self, event: DataTable.RowSelected) -> None:
+        if self.scanning or self.identity_failed:
+            return
         row = self.rows.get(event.row_key.value)
         if isinstance(row, CloudWatchAlarm):
             self.start_scan(row.name)
+        elif isinstance(row, CloudFormationStack | CloudFormationResource):
+            stack_id = stack_to_open(row)
+            if stack_id is not None and stack_id not in self.stack_path:
+                self.stack_path.append(stack_id)
+                self.show_stack_level()
 
     def show_details(self, key: str) -> None:
         self.highlighted = key
@@ -567,6 +637,24 @@ class InventoryBrowser(App[None]):
                 lines.extend(self.history_details())
             elif self.load_view is not None:
                 lines.append("Enter: alarm history")
+        elif isinstance(row, CloudFormationStack):
+            lines = [
+                row.name,
+                f"Status: {stack_status(row.status)}",
+                f"Last change: {row.changed_at}",
+                f"Stack ID: {field_value(row.stack_id)}",
+                f"Parent stack ID: {field_value(row.parent_id)}",
+            ]
+        elif isinstance(row, CloudFormationResource):
+            lines = [
+                f"Stack: {self.stack_path[-1].split('/')[1]}",
+                f"{row.logical_id} | {row.resource_type}",
+                f"Recorded status: {stack_status(row.status)}",
+                f"Physical ID: {row.physical_id or 'Unavailable'}",
+            ]
+            nested_id = stack_to_open(row)
+            if nested_id is not None and nested_id not in self.stack_path:
+                lines.insert(1, "Enter: open nested stack")
         elif isinstance(row, Ec2Instance):
             system = EC2_CHECK_STATES.get(row.system_status or "", "Unknown")
             instance = EC2_CHECK_STATES.get(row.instance_status or "", "Unknown")
@@ -646,8 +734,36 @@ class InventoryBrowser(App[None]):
         self.query_one(Input).value = ""
         self.query_one(DataTable).focus()
 
+    def current_stack_id(self) -> str | None:
+        return self.stack_path[-1] if self.stack_path else None
+
+    def show_stack_level(self) -> None:
+        stack_id = self.current_stack_id()
+        self.set_columns()
+        self.query_one(Input).value = ""
+        self.query_one(DataTable).focus()
+        self.refresh_bindings()
+        if self.load_view is None:
+            self.report = demo_stacks(stack_id)
+            self.populate("")
+            return
+        self.report = self.stack_reports.get(stack_id)
+        if self.report is None:
+            self.start_scan(stack_id)
+        else:
+            self.show_status(self.report, cached=True)
+            self.populate("")
+
+    def action_back_stack(self) -> None:
+        self.stack_path.pop()
+        self.show_stack_level()
+
     def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
         if action == "open_views":
+            return None if self.scanning or self.identity_failed else True
+        if action == "back_stack":
+            if self.view is not View.STACKS or not self.stack_path:
+                return False
             return None if self.scanning or self.identity_failed else True
         if action == "refresh_costs":
             if self.load_view is None or self.view is not View.COSTS:
@@ -664,6 +780,10 @@ class InventoryBrowser(App[None]):
         self.start_scan()
 
     def action_reset_demo(self) -> None:
+        if self.view is View.STACKS:
+            self.stack_path.clear()
+            self.show_stack_level()
+            return
         self.apps = demo_apps() if self.view is View.AMPLIFY else []
         if self.view is View.CLOUDWATCH:
             self.report = demo_alarms()

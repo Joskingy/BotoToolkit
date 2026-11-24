@@ -152,6 +152,8 @@ type ReportRow = (
     | DeploymentReceipt
     | Ec2Instance
     | CloudWatchAlarm
+    | CloudFormationStack
+    | CloudFormationResource
     | AlarmStateChange
     | CloudTrailChange
     | DiscoveredResource
@@ -192,6 +194,23 @@ class Ec2Instance:
     instance_status: str | None
     system_status: str | None
     volume_ids: list[str]
+
+
+@dataclass(frozen=True)
+class CloudFormationStack:
+    name: str
+    stack_id: str | None
+    status: str
+    changed_at: str
+    parent_id: str | None
+
+
+@dataclass(frozen=True)
+class CloudFormationResource:
+    logical_id: str
+    resource_type: str
+    physical_id: str | None
+    status: str
 
 
 @dataclass(frozen=True)

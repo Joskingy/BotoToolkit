@@ -21,6 +21,7 @@ from amplify_ops.costs import cost_report
 from amplify_ops.deployments import DeploymentBlocked, create_plan, execute_plan, load_plan
 from amplify_ops.doctor import collect_checks
 from amplify_ops.inventory import (
+    collect_cloudformation,
     collect_cloudtrail_changes,
     collect_cloudwatch_alarms,
     collect_ebs_candidates,
@@ -152,7 +153,7 @@ def browse(
     access: AwsAccess | None = None
 
     def load_view(
-        view: View, alarm_name: str | None, cancelled: Callable[[], bool]
+        view: View, selection: str | None, cancelled: Callable[[], bool]
     ) -> Inventory | Report:
         nonlocal access
         region = settings.regions[0]
@@ -171,8 +172,10 @@ def browse(
                 return collect_ec2_inventory(access, settings.regions, None, None, budget=budget)
             case View.CLOUDWATCH:
                 return collect_cloudwatch_alarms(
-                    access, settings.regions, None, alarm_name, budget=budget
+                    access, settings.regions, None, selection, budget=budget
                 )
+            case View.STACKS:
+                return collect_cloudformation(access, region, selection, budget=budget)
             case View.CLOUDTRAIL:
                 return collect_cloudtrail_changes(
                     access, settings.regions, 24, 100, None, budget=budget

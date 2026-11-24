@@ -3,6 +3,8 @@
 from amplify_ops.models import (
     App,
     Branch,
+    CloudFormationResource,
+    CloudFormationStack,
     CloudWatchAlarm,
     Deployment,
     Ec2Instance,
@@ -126,4 +128,47 @@ def demo_instances() -> Report:
             )
             for index, (name, state, owner, instance, system) in enumerate(examples, start=1)
         ],
+    )
+
+
+def demo_stacks(stack_id: str | None) -> Report:
+    region = "us-east-1"
+    arn = "arn:aws:cloudformation:us-east-1:ACCOUNT_ID:stack"
+    app = f"{arn}/Demo-storefront/demo-store"
+    backend = f"{arn}/Demo-data/demo-data"
+    other = f"{arn}/Demo-monitoring/demo-monitor"
+    created_at = "2026-01-15T08:00:00Z"
+    if stack_id is None:
+        rows = [
+            CloudFormationStack("Demo-storefront", app, "UPDATE_COMPLETE", created_at, None),
+            CloudFormationStack("Demo-data", backend, "CREATE_COMPLETE", created_at, app),
+            CloudFormationStack("Demo-monitoring", other, "CREATE_COMPLETE", created_at, None),
+        ]
+    elif stack_id == app:
+        rows = [
+            CloudFormationResource(
+                "DataStack", "AWS::CloudFormation::Stack", backend, "CREATE_COMPLETE"
+            ),
+            CloudFormationResource(
+                "Api", "AWS::AppSync::GraphQLApi", "demo-graphql-api", "CREATE_COMPLETE"
+            ),
+        ]
+    elif stack_id == backend:
+        rows = [
+            CloudFormationResource(
+                "Orders", "AWS::DynamoDB::Table", "demo-orders", "CREATE_COMPLETE"
+            ),
+        ]
+    else:
+        rows = [
+            CloudFormationResource(
+                "ErrorAlarm", "AWS::CloudWatch::Alarm", "demo-errors", "CREATE_COMPLETE"
+            ),
+        ]
+    return Report(
+        Identity("DEMO", ""),
+        "stack_resources" if stack_id else "cloudformation_stacks",
+        "2026-01-15T10:30:00Z",
+        [region],
+        rows=rows,
     )

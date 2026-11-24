@@ -1,6 +1,7 @@
 """Inventory collection and latest-job selection, independent of terminal output."""
 
 import json
+import re
 from collections import Counter
 from contextlib import closing
 from datetime import UTC, datetime, timedelta
@@ -20,6 +21,8 @@ from amplify_ops.models import (
     AlarmStateChange,
     App,
     Branch,
+    CloudFormationResource,
+    CloudFormationStack,
     CloudTrailChange,
     CloudWatchAlarm,
     Deployment,
@@ -182,6 +185,84 @@ def collect_ec2_inventory(
                     ],
                 )
             )
+    return report
+
+
+def _scoped_stack_id(value: str | None, region: str, account: str) -> str | None:
+    if value is None:
+        return None
+    match = re.fullmatch(
+        r"arn:[a-z0-9-]+:cloudformation:([a-z0-9-]+):([0-9]{12}):stack/"
+        r"[A-Za-z0-9-]+/[A-Za-z0-9-]+",
+        value,
+    )
+    return value if match and match.groups() == (region, account) else None
+
+
+def _stack_resource_id(
+    resource_type: str, value: str | None, region: str, account: str
+) -> str | None:
+    if resource_type == "AWS::CloudFormation::Stack":
+        return _scoped_stack_id(value, region, account)
+    # Custom providers can put arbitrary content here. Wait conditions can expose
+    # signed URLs. Share only identifier-shaped values from built-in types.
+    if (
+        value
+        and resource_type.startswith("AWS::")
+        and resource_type
+        not in (
+            "AWS::CloudFormation::CustomResource",
+            "AWS::CloudFormation::WaitConditionHandle",
+        )
+        and "://" not in value
+        and re.fullmatch(r"[A-Za-z0-9_.:/@+,=-]+", value)
+    ):
+        return value
+    return None
+
+
+def collect_cloudformation(
+    access: AwsAccess, region: str, stack_id: str | None, *, budget: InventoryBudget
+) -> Report:
+    report = Report(
+        access.identity,
+        "stack_resources" if stack_id else "cloudformation_stacks",
+        timestamp(datetime.now(UTC)),
+        [region],
+    )
+    account = access.identity.account_id
+    try:
+        with closing(access.service("cloudformation", region, budget=budget)) as reader:
+            if stack_id is None:
+                for page in reader.pages("list_stacks"):
+                    for item in page.get("StackSummaries", []):
+                        if item["StackStatus"] == "DELETE_COMPLETE":
+                            continue
+                        report.rows.append(
+                            CloudFormationStack(
+                                item["StackName"],
+                                _scoped_stack_id(item.get("StackId"), region, account),
+                                item["StackStatus"],
+                                timestamp(item.get("LastUpdatedTime") or item["CreationTime"]),
+                                _scoped_stack_id(item.get("ParentId"), region, account),
+                            )
+                        )
+            else:
+                for page in reader.pages("list_stack_resources", StackName=stack_id):
+                    for item in page.get("StackResourceSummaries", []):
+                        resource_type = item["ResourceType"]
+                        report.rows.append(
+                            CloudFormationResource(
+                                item["LogicalResourceId"],
+                                resource_type,
+                                _stack_resource_id(
+                                    resource_type, item.get("PhysicalResourceId"), region, account
+                                ),
+                                item["ResourceStatus"],
+                            )
+                        )
+    except (InventoryLimitReached, ResourceFailure) as error:
+        report.add_error(error.error)
     return report
 
 

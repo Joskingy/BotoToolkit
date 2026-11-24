@@ -135,6 +135,37 @@ def test_offline_ec2_health_orders_impaired_and_keeps_totals_when_filtered(tui_r
 
 
 @pytest.mark.usefixtures("forbid_aws_session")
+def test_offline_cloudformation_navigates_nested_stacks(tui_runner):
+    async def journey():
+        browser = InventoryBrowser()
+        async with browser.run_test(size=(60, 20)) as pilot:
+            table = browser.query_one(DataTable)
+            await pilot.press("f2", "down", "down", "down", "enter")
+            assert table.row_count == 3
+            assert "Demo-storefront" in details(browser)
+            await pilot.press("slash", *"update complete", "enter")
+            assert table.row_count == 1
+            await pilot.press("enter")
+            assert "Enter: open nested stack" in details(browser)
+            await pilot.press("enter")
+            assert table.row_count == 1
+            assert "Stack: Demo-data" in details(browser)
+            assert "Physical ID: demo-orders" in details(browser)
+            assert browser.query_one(Footer).region.bottom <= 20
+
+            await pilot.press("slash", *"Orderz", "backspace", "s", "enter")
+            assert table.row_count == 1
+            assert "Physical ID: demo-orders" in details(browser)
+            await pilot.press("backspace")
+            assert table.row_count == 2
+            assert "Stack: Demo-storefront" in details(browser)
+            await pilot.press("backspace")
+            assert table.row_count == 3
+
+    tui_runner.run(journey())
+
+
+@pytest.mark.usefixtures("forbid_aws_session")
 def test_partial_empty_and_no_deployments_are_distinct(tui_runner):
     async def journey():
         browser = InventoryBrowser()
@@ -605,3 +636,150 @@ def test_live_views_load_on_selection_and_reverify_before_each_scan(
         browse(ctx, live=True, view_arn=view_arn)
     assert error.value.exit_code == 1
     factory.assert_called_once_with(profile_name="test-operator", region_name=REGION)
+
+
+def test_live_cloudformation_drilldown_checks_identity_and_preserves_partial_rows(
+    tui_runner, harness, service_stub, monkeypatch
+):
+    factory, session, stubs = harness
+    cloudformation = service_stub("cloudformation")
+    stubs["amplify", REGION].add_response("list_apps", {"apps": []}, {})
+    for _ in range(3):
+        identity_response(stubs)
+    identity_response(stubs, "000000000000")
+    arn = f"arn:aws:cloudformation:{REGION}:{ACCOUNT}:stack"
+    parent = f"{arn}/Example-parent/test-parent"
+    child = f"{arn}/Example-child/test-child"
+    old = f"{arn}/Old-stack/test-old"
+
+    def stack(stack_id, name, status, **extra):
+        return {
+            "StackId": stack_id,
+            "StackName": name,
+            "StackStatus": status,
+            "CreationTime": NOW,
+            **extra,
+        }
+
+    def resource(logical_id, resource_type, physical_id, **extra):
+        return {
+            "LogicalResourceId": logical_id,
+            "ResourceType": resource_type,
+            "PhysicalResourceId": physical_id,
+            "ResourceStatus": "CREATE_COMPLETE",
+            "LastUpdatedTimestamp": NOW,
+            **extra,
+        }
+
+    cloudformation.add_response(
+        "list_stacks",
+        {
+            "StackSummaries": [
+                stack(parent, "Example-parent", "UPDATE_COMPLETE"),
+                stack(old, "Old-stack", "DELETE_COMPLETE"),
+            ],
+            "NextToken": "next-stacks",
+        },
+        {},
+    )
+    cloudformation.add_response(
+        "list_stacks",
+        {"StackSummaries": [stack(child, "Example-child", "CREATE_COMPLETE", ParentId=parent)]},
+        {"NextToken": "next-stacks"},
+    )
+    cloudformation.add_response(
+        "list_stack_resources",
+        {
+            "StackResourceSummaries": [
+                resource("Backend", "AWS::CloudFormation::Stack", child),
+                resource("Custom", "Custom::Example", "private-custom-identifier"),
+            ],
+        },
+        {"StackName": parent},
+    )
+    cloudformation.add_response(
+        "list_stack_resources",
+        {
+            "StackResourceSummaries": [
+                resource(
+                    "Orders",
+                    "AWS::DynamoDB::Table",
+                    "example-orders",
+                    ResourceStatusReason="private-status-reason",
+                ),
+            ],
+            "NextToken": "next-resources",
+        },
+        {"StackName": child},
+    )
+    cloudformation.add_client_error(
+        "list_stack_resources",
+        "AccessDenied",
+        "private-service-error",
+        expected_params={"StackName": child, "NextToken": "next-resources"},
+    )
+
+    async def journey(browser):
+        async with browser.run_test(size=(80, 25)) as pilot:
+            table = browser.query_one(DataTable)
+            banner = browser.query_one("#banner", Static)
+
+            async def finish():
+                await browser.workers.wait_for_complete()
+                await pilot.pause()
+
+            await finish()
+            browser.query_one(Select).value = View.STACKS
+            await pilot.pause()
+            await finish()
+            assert table.row_count == 2
+            assert "Example-parent" in details(browser)
+            assert "Old-stack" not in str(table.get_row_at(1))
+
+            await pilot.press("enter")
+            await finish()
+            assert table.row_count == 2
+            await pilot.press("down")
+            assert "Physical ID: Unavailable" in details(browser)
+            assert "private-custom-identifier" not in details(browser)
+            await pilot.press("up", "enter")
+            await finish()
+            assert table.row_count == 1
+            assert "PARTIAL" in str(banner.content)
+            assert "Physical ID: example-orders" in details(browser)
+            assert "private-" not in details(browser)
+            assert browser.scan_exit_code == 3
+
+            calls = session.client.call_count
+            await pilot.press("backspace", "backspace")
+            assert table.row_count == 2
+            assert "Cached" in str(banner.content)
+            assert session.client.call_count == calls
+
+            await pilot.press("down", "enter")
+            await finish()
+            assert "Account mismatch" in details(browser)
+            assert table.row_count == 0
+            await pilot.press("ctrl+q")
+
+    monkeypatch.setattr("amplify_ops.cli.sys.stdin.isatty", lambda: True)
+    monkeypatch.setattr("amplify_ops.cli.sys.stdout.isatty", lambda: True)
+    monkeypatch.setattr(InventoryBrowser, "run", lambda browser: tui_runner.run(journey(browser)))
+    ctx = typer.Context(
+        typer.main.get_command(app), obj=Settings("test-operator", ACCOUNT, [REGION])
+    )
+    with pytest.raises(typer.Exit) as error:
+        browse(ctx, live=True)
+    assert error.value.exit_code == 1
+    factory.assert_called_once_with(profile_name="test-operator", region_name=REGION)
+    assert [call.args[0] for call in session.client.call_args_list] == [
+        "sts",
+        "amplify",
+        "sts",
+        "cloudformation",
+        "sts",
+        "cloudformation",
+        "sts",
+        "cloudformation",
+        "sts",
+    ]

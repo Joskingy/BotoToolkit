@@ -10,7 +10,8 @@ uv run --offline --no-sync bototoolkit browse --demo
 ```
 
 The demo includes sample Amplify deployments, CloudWatch alarms, and EC2
-instances. Press **F2** to select a view or **Ctrl+R** to reset it.
+instances and CloudFormation stacks. Press **F2** to select a view or
+**Ctrl+R** to reset it.
 The demo uses synthetic data and runs without credentials or network access.
 
 ## Live reports
@@ -51,6 +52,14 @@ Cost Explorer waits for F5. Search filters the displayed rows locally.
   by service and region. Enable both by appending `--view-arn VIEW_ARN` to the
   command. Use an existing view in the verified account and selected region.
   Coverage depends on the view and its index.
+- **CloudFormation stacks** lists current stacks in the selected region,
+  including nested stacks. Select a stack and press **Enter** to load its
+  recorded resources. Highlight a resource to see its full type, physical ID
+  when available, and last recorded status. Press **Enter** on a nested stack
+  to open it and **Backspace** to return to the previous list. Complete listings
+  are reused for the session. Reopen a partial listing to try again. Live mode
+  requires `cloudformation:ListStacks` and `cloudformation:ListStackResources`.
+  These metadata reads do not run drift checks or invoke resource providers.
 - **Cost Explorer** shows unblended costs by service for
   the last 30 completed UTC days across all billing regions of the verified
   account. Dates, currency, and AWS estimate flags are shown. Credits and
