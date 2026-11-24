@@ -1,11 +1,20 @@
-"""Read-only AppSync key expiry; raw API-key IDs are credentials, not report IDs."""
+"""Read-only AppSync metadata and key expiry reports."""
 
+import re
+from contextlib import closing
 from datetime import UTC, datetime, timedelta
 from hashlib import sha256
 
-from amplify_ops.aws import AwsAccess, ResourceFailure
+from amplify_ops.aws import AwsAccess, InventoryBudget, InventoryLimitReached, ResourceFailure
 from amplify_ops.inventory import timestamp
-from amplify_ops.models import ApiKeyExpiry, ApiSummary, Report, ScanError
+from amplify_ops.models import (
+    ApiKeyExpiry,
+    ApiSummary,
+    AppSyncApi,
+    AppSyncTableSource,
+    Report,
+    ScanError,
+)
 
 
 def key_expirations(
@@ -97,4 +106,90 @@ def key_expirations(
         finally:
             if reader is not None:
                 reader.close()
+    return report
+
+
+def collect_appsync_tables(
+    access: AwsAccess, region: str, api_id: str | None, *, budget: InventoryBudget
+) -> Report:
+    identity = access.identity
+    partition = identity.caller_arn.split(":", 2)[1]
+    report = Report(
+        identity,
+        "appsync_table_sources" if api_id else "appsync_apis",
+        timestamp(datetime.now(UTC)),
+        [region],
+    )
+    try:
+        with closing(access.service("appsync", region, budget=budget)) as reader:
+            if api_id is None:
+                api_prefix = f"arn:{partition}:appsync:{region}:{identity.account_id}:apis/"
+                for page in reader.pages(
+                    "list_graphql_apis", apiType="GRAPHQL", owner="CURRENT_ACCOUNT"
+                ):
+                    for api in page.get("graphqlApis", []):
+                        found_id = api.get("apiId", "")
+                        expected = api_prefix + found_id
+                        if not re.fullmatch(r"[a-z0-9]+", found_id) or api.get("arn") != expected:
+                            report.add_error(
+                                ScanError(
+                                    region, "list_graphql_apis", "ApiIdentityMismatch", "metadata"
+                                )
+                            )
+                            continue
+                        report.rows.append(AppSyncApi(api.get("name") or found_id, found_id))
+                return report
+
+            role_prefix = f"arn:{partition}:iam::{identity.account_id}:role/"
+            for page in reader.pages("list_data_sources", apiId=api_id):
+                for source in page.get("dataSources", []):
+                    if source.get("type") != "AMAZON_DYNAMODB":
+                        continue
+                    config = source.get("dynamodbConfig", {})
+                    table_region = config.get("awsRegion", "")
+                    primary = config.get("tableName")
+                    delta = config.get("deltaSyncConfig", {}).get("deltaSyncTableName")
+                    if (
+                        not re.fullmatch(r"[a-z0-9-]+", table_region)
+                        or not primary
+                        or not source.get("name")
+                    ):
+                        report.add_error(
+                            ScanError(
+                                region, "list_data_sources", "SourceMetadataMissing", "metadata"
+                            )
+                        )
+                        continue
+                    # A name resolves in the credentials' account. Caller credentials
+                    # or an unverified role don't prove a same-account target.
+                    local_role = not config.get("useCallerCredentials", False) and source.get(
+                        "serviceRoleArn", ""
+                    ).startswith(role_prefix)
+                    for name, delta_sync in ((primary, False), (delta, True)):
+                        if name is None:
+                            continue
+                        table_prefix = (
+                            f"arn:{partition}:dynamodb:{table_region}:{identity.account_id}:table/"
+                        )
+                        table_name = name.rsplit("/", 1)[-1] if name.startswith("arn:") else name
+                        if not re.fullmatch(r"[A-Za-z0-9_.-]{3,255}", table_name):
+                            report.add_error(
+                                ScanError(
+                                    region, "list_data_sources", "InvalidTableReference", "metadata"
+                                )
+                            )
+                            continue
+                        expected_arn = table_prefix + table_name
+                        local_target = name == expected_arn or (name == table_name and local_role)
+                        report.rows.append(
+                            AppSyncTableSource(
+                                source["name"],
+                                table_name,
+                                table_region,
+                                expected_arn if local_target else None,
+                                delta_sync,
+                            )
+                        )
+    except (InventoryLimitReached, ResourceFailure) as error:
+        report.add_error(error.error)
     return report

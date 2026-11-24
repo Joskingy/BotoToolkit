@@ -9,8 +9,9 @@ uv sync --locked --extra browse
 uv run --offline --no-sync bototoolkit browse --demo
 ```
 
-The demo includes sample Amplify deployments and CloudWatch alarms. Press
-**F2** to switch between them or **Ctrl+R** to reset the current demo view.
+The demo includes sample Amplify deployments, CloudWatch alarms, and EC2
+instances, CloudFormation stacks, DynamoDB tables, and AppSync data sources.
+Press **F2** to select a view or **Ctrl+R** to reset it.
 The demo uses synthetic data and runs without credentials or network access.
 
 ## Live reports
@@ -31,8 +32,14 @@ Cost Explorer waits for F5. Search filters the displayed rows locally.
 - **Unattached EBS volumes** are ordered by size. Details show the owner,
   creation time, and latest completed snapshot found by the check. An
   incomplete snapshot check shows `unknown`.
-- **EC2 inventory** shows instance state and health. Details include owner,
-  environment, and attached volume IDs.
+- **EC2 inventory** summarizes instances with impaired or passing checks,
+  stopped instances, and unknown health. Impaired instances appear first,
+  with the failed check and owner visible in the table. A running instance
+  counts as passed when both its system and instance checks passed. Select a
+  row for the full instance name
+  and ID, both check results, environment, and attached volume IDs. A partial
+  scan marks its totals as incomplete. Search filters rows locally and leaves
+  the health counts based on the retrieved scan.
 - **CloudWatch alarms** shows counts by state and the number with actions
   disabled. The counts describe the retrieved scan. Search changes only the
   number of displayed alarms. A partial scan labels the counts as incomplete.
@@ -45,6 +52,33 @@ Cost Explorer waits for F5. Search filters the displayed rows locally.
   by service and region. Enable both by appending `--view-arn VIEW_ARN` to the
   command. Use an existing view in the verified account and selected region.
   Coverage depends on the view and its index.
+- **CloudFormation stacks** lists current stacks in the selected region,
+  including nested stacks. Select a stack and press **Enter** to load its
+  recorded resources. Highlight a resource to see its full type, physical ID
+  when available, and last recorded status. Press **Enter** on a nested stack
+  to open it and **Backspace** to return to the previous list. Complete listings
+  are reused for the session. Reopen a partial listing to try again. Live mode
+  requires `cloudformation:ListStacks` and `cloudformation:ListStackResources`.
+  These metadata reads do not run drift checks or invoke resource providers.
+- **DynamoDB tables** lists tables in the selected region, including tables
+  created outside CloudFormation. Highlight a table and press **Enter** to
+  see status, billing mode, deletion protection, approximate size, and
+  approximate item count. DynamoDB updates its estimates about every six
+  hours. The managing stack uses an exact table name or ARN match from
+  recorded CloudFormation resources in the same account and region. Open
+  stack resource lists in **CloudFormation stacks** to build that evidence
+  for the session. Browse shows **Stack lookup incomplete** when it lacks
+  coverage and **No stack match found** after checking all listed stacks.
+  Live mode uses `dynamodb:ListTables` and `dynamodb:DescribeTable` for
+  metadata only. Table contents stay in DynamoDB.
+- **AppSync data sources** lists standard GraphQL APIs owned by the verified
+  account in the selected region. Press **Enter** on an API to show the DynamoDB
+  tables and regions configured as its data sources, including delta sync
+  tables. Browse reuses inspected sources in the DynamoDB details and links a
+  table only when the account, region, and table identity match. Sources with
+  unresolved target accounts remain visible in AppSync. These are configured
+  connections. Live mode uses `appsync:ListGraphqlApis` and
+  `appsync:ListDataSources` and does not send GraphQL requests.
 - **Cost Explorer** shows unblended costs by service for
   the last 30 completed UTC days across all billing regions of the verified
   account. Dates, currency, and AWS estimate flags are shown. Credits and
