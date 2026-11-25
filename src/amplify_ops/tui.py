@@ -214,7 +214,8 @@ class InventoryBrowser(App[None]):
     #view:disabled > SelectCurrent { background: $surface-lighten-1; }
     #cost-console { display: none; margin: 0 1; }
     #search { margin: 0 1; }
-    #summary { height: auto; margin: 0 1; }
+    #summary-scroll { height: auto; max-height: 4; margin: 0 1; }
+    #summary { height: auto; }
     #resources { height: 1fr; min-height: 5; margin: 0 1; border: round $primary; }
     #detail-scroll { height: 1fr; min-height: 5; max-height: 11;
                      margin: 0 1; border: round $accent; }
@@ -287,7 +288,8 @@ class InventoryBrowser(App[None]):
                 id="cost-console",
             )
         yield Input(placeholder="Search displayed inventory…", id="search")
-        yield Static(id="summary")
+        with VerticalScroll(id="summary-scroll"):
+            yield Static(id="summary", markup=False)
         yield DataTable(id="resources", cursor_type="row", zebra_stripes=True)
         with VerticalScroll(id="detail-scroll"):
             yield Static(id="details", markup=False)
@@ -595,6 +597,19 @@ class InventoryBrowser(App[None]):
             partial = "Partial · " if not self.report.complete else ""
             summary = f"{kind} · {partial}{len(self.rows)} of {len(self.report.rows)} shown"
             if self.stack_path:
+                counts = Counter(
+                    row.resource_type
+                    for row in self.report.rows
+                    if isinstance(row, CloudFormationResource)
+                )
+                total = sum(counts.values())
+                retrieved = f"{total}" if self.report.complete else f"At least {total} (partial)"
+                summary = f"Direct resources · {retrieved} retrieved · {len(self.rows)} shown"
+                if counts:
+                    summary += "\n" + " · ".join(
+                        f"{count} {resource_type.removeprefix('AWS::')}"
+                        for resource_type, count in sorted(counts.items())
+                    )
                 summary += "\nBackspace: previous list"
             elif self.rows:
                 summary += "\nEnter: view stack resources"
