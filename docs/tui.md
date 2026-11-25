@@ -54,7 +54,13 @@ Cost Explorer waits for F5. Search filters the displayed rows locally.
   Coverage depends on the view and its index.
 - **CloudFormation stacks** lists current stacks in the selected region,
   including nested stacks. Select a stack and press **Enter** to load its
-  recorded resources. Highlight a resource to see its full type, physical ID
+  recorded resources. The summary counts direct resources by type across the
+  retrieved scan, independently of search. Partial scans label their totals as
+  lower bounds. A nested stack counts once in its parent; open it to see its own
+  resource counts. Scroll the summary for longer type lists. The offline demo's
+  **Demo-storefront** includes two Lambda functions, an AppSync API, and a nested
+  **DataStack** containing a DynamoDB table.
+  Highlight a resource to see its full type, physical ID
   when available, and last recorded status. Press **Enter** on a nested stack
   to open it and **Backspace** to return to the previous list. Complete listings
   are reused for the session. Reopen a partial listing to try again. Live mode

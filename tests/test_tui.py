@@ -10,10 +10,12 @@ import typer
 from botocore.stub import ANY
 from conftest import ACCOUNT, NOW, REGION, app_response, branch_response, identity_response
 from rich.text import Text
+from textual.containers import VerticalScroll
 from textual.widgets import DataTable, Footer, Input, Select, Static
 from typer.testing import CliRunner
 
 from amplify_ops.cli import Settings, app, browse
+from amplify_ops.models import CloudFormationResource
 from amplify_ops.tui import InventoryBrowser, View
 from amplify_ops.tui_demo import demo_stacks, demo_tables
 
@@ -149,20 +151,71 @@ def test_offline_cloudformation_navigates_nested_stacks(tui_runner):
             assert table.row_count == 1
             await pilot.press("enter")
             assert "Enter: open nested stack" in details(browser)
-            await pilot.press("enter")
+            summary = browser.query_one("#summary", Static)
+            assert "Direct resources · 4 retrieved · 4 shown" in str(summary.content)
+            assert "2 Lambda::Function" in str(summary.content)
+            assert "1 CloudFormation::Stack" in str(summary.content)
+            assert "DynamoDB::Table" not in str(summary.content)
+            await pilot.press("slash", *"lambda", "enter")
+            assert table.row_count == 2
+            assert "Direct resources · 4 retrieved · 2 shown" in str(summary.content)
+            assert "1 CloudFormation::Stack" in str(summary.content)
+            await pilot.press("escape", "enter")
             assert table.row_count == 1
             assert "Stack: Demo-data" in details(browser)
             assert "Physical ID: demo-orders" in details(browser)
+            assert "Direct resources · 1 retrieved · 1 shown" in str(summary.content)
+            assert "1 DynamoDB::Table" in str(summary.content)
+            assert "Lambda::Function" not in str(summary.content)
             assert browser.query_one(Footer).region.bottom <= 20
+            assert table.region.height >= 5
 
             await pilot.press("slash", *"Orderz", "backspace", "s", "enter")
             assert table.row_count == 1
             assert "Physical ID: demo-orders" in details(browser)
             await pilot.press("backspace")
-            assert table.row_count == 2
+            assert table.row_count == 4
             assert "Stack: Demo-storefront" in details(browser)
             await pilot.press("backspace")
             assert table.row_count == 3
+
+    tui_runner.run(journey())
+
+
+@pytest.mark.usefixtures("forbid_aws_session")
+def test_cloudformation_summary_scrolls_and_labels_empty_partial_results(tui_runner):
+    async def journey():
+        browser = InventoryBrowser()
+        async with browser.run_test(size=(60, 20)) as pilot:
+            browser.query_one(Select).value = View.STACKS
+            await pilot.pause()
+            await pilot.press("enter")
+            browser.report = replace(
+                browser.report,
+                rows=[
+                    CloudFormationResource(
+                        f"Resource{index}", f"Custom::ExampleType{index}", None, "CREATE_COMPLETE"
+                    )
+                    for index in range(20)
+                ],
+            )
+            browser.populate("")
+            await pilot.pause()
+            summary = browser.query_one("#summary", Static)
+            assert "20 retrieved · 20 shown" in str(summary.content)
+            assert "1 Custom::ExampleType19" in str(summary.content)
+            scroll = browser.query_one("#summary-scroll", VerticalScroll)
+            assert scroll.max_scroll_y > 0
+            scroll.scroll_end(animate=False)
+            await pilot.pause()
+            assert scroll.scroll_y > 0
+            assert browser.query_one(DataTable).region.height >= 5
+            assert browser.query_one(Footer).region.bottom <= 20
+
+            browser.report = replace(browser.report, rows=[], complete=False)
+            browser.populate("")
+            assert "At least 0 (partial) retrieved · 0 shown" in str(summary.content)
+            assert "Custom::" not in str(summary.content)
 
     tui_runner.run(journey())
 
@@ -829,6 +882,15 @@ def test_live_cloudformation_drilldown_checks_identity_and_preserves_partial_row
             await finish()
             assert table.row_count == 1
             assert "PARTIAL" in str(banner.content)
+            summary = browser.query_one("#summary", Static)
+            assert "Direct resources · At least 1 (partial) retrieved · 1 shown" in str(
+                summary.content
+            )
+            assert "1 DynamoDB::Table" in str(summary.content)
+            await pilot.press("slash", *"absent", "enter")
+            assert "At least 1 (partial) retrieved · 0 shown" in str(summary.content)
+            assert "1 DynamoDB::Table" in str(summary.content)
+            await pilot.press("escape")
             assert "Physical ID: example-orders" in details(browser)
             assert "private-" not in details(browser)
             assert browser.scan_exit_code == 3

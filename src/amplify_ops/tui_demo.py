@@ -155,6 +155,12 @@ def demo_stacks(stack_id: str | None) -> Report:
             CloudFormationResource(
                 "Api", "AWS::AppSync::GraphQLApi", "demo-graphql-api", "CREATE_COMPLETE"
             ),
+            CloudFormationResource(
+                "OrderHandler", "AWS::Lambda::Function", "demo-order-handler", "CREATE_COMPLETE"
+            ),
+            CloudFormationResource(
+                "OrderWorker", "AWS::Lambda::Function", "demo-order-worker", "CREATE_COMPLETE"
+            ),
         ]
     elif stack_id == backend:
         rows = [
