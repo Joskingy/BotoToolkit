@@ -36,6 +36,20 @@ existing read-only collector. F5 requests data and the session caches the result
 The v0.3.0 package and command are named `bototoolkit`. Start the interactive
 view with `bototoolkit browse --demo` or supply AWS settings and `browse --live`.
 
+Status: published. See the [v0.3.0 release notes](https://github.com/Joskingy/BotoToolkit/releases/tag/v0.3.0).
+
+## 0.4.0 read-only infrastructure inventory
+
+Browse shows CloudWatch alarm counts and details, EC2 health, and
+CloudFormation stack membership with resource counts and nested stacks.
+DynamoDB details include metadata and managing stacks when the inspected
+resources match. AppSync shows configured DynamoDB data sources and links them
+to tables when the account, region, and table identity match.
+
+Live scans verify the account, use bounded pagination, and label partial
+results. The [Browse guide](docs/tui.md) shows the offline demo and permissions
+for the live views.
+
 Status: implemented and tested. Release preparation is in progress.
 
 ## Operating limits

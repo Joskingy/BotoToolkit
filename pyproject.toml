@@ -1,6 +1,6 @@
 [project]
 name = "bototoolkit"
-version = "0.3.0"
+version = "0.4.0"
 description = "Read-only AWS inventory, investigation, and costs with controlled Amplify retries"
 readme = "README.md"
 authors = [
