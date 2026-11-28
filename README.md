@@ -15,6 +15,16 @@ installation, AWS setup, and CLI and terminal browser examples.
 See the [CLI workflow diagrams](docs/cli-workflow.md) for the identity gate,
 read-only commands, and controlled retry path.
 
+## v0.4.0 preview
+
+Browse summarizes CloudWatch alarms and EC2 health. Open a CloudFormation
+stack to see direct resource counts by type, partial results, and nested
+stacks. Inspect DynamoDB table metadata and see recorded stack ownership and
+configured AppSync connections when Browse can verify the match.
+
+Try the [v0.4.0 preview from source](docs/quick-start.md#try-the-v040-preview-from-source).
+The published wheel below is v0.3.0.
+
 ## v0.3.0
 
 BotoToolkit installs as the `bototoolkit` package and command. Its optional

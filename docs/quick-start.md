@@ -161,6 +161,24 @@ service costs inside Browse, press **F5**. This starts a billable query for the
 last 30 completed UTC days across all billing regions of the verified account.
 Switching back to this view reuses the results until you quit.
 
+### Try the v0.4.0 preview from source
+
+From a [source checkout that includes v0.4.0](../README.md#work-from-a-source-checkout),
+install the Browse extra and launch the offline demo.
+
+```powershell
+uv sync --locked --extra browse
+uv run --offline --no-sync bototoolkit browse --demo
+```
+
+Press **F2** to switch between sample views. In **CloudFormation stacks**, open
+**Demo-storefront** with **Enter** to see resource counts, then open
+**DataStack** to see the nested stack's DynamoDB table. Press **Backspace** to
+return. The demo runs offline with synthetic data.
+
+Use the [source checkout's Browse guide](tui.md#live-reports) for the new live
+views and their read permissions.
+
 ## 6. Choose a report for your task
 
 ### Investigate Amplify

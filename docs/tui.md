@@ -1,8 +1,10 @@
 # Browse
 
-From a source checkout, install the browse extra and launch the demo in an
-interactive terminal. Allow at least 60 columns by 20 rows. For the published
-wheel, follow [the user guide](quick-start.md#5-try-the-terminal-browser).
+This guide covers Browse in the v0.4.0 source checkout. For the published
+v0.3.0 wheel, follow [the user guide](quick-start.md#5-try-the-terminal-browser).
+
+Install the Browse extra and launch the demo in an interactive terminal with
+at least 60 columns by 20 rows.
 
 ```powershell
 uv sync --locked --extra browse
